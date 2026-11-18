@@ -1,3 +1,9 @@
+@php
+$actionRoute = auth()->user()->isProvider()
+? route('provider.requests.stepOne')
+: route('client.requests.stepOne');
+@endphp
+
 <!DOCTYPE html>
 <html lang="es">
 
@@ -44,7 +50,7 @@
                     </div>
 
                     <div class="card-body p-4 p-md-5">
-                        <form action="{{ route('client.requests.stepOne') }}" method="POST">
+                        <form action="{{ $actionRoute }}" method="POST">
                             @csrf
 
                             <!-- Sección 1 -->

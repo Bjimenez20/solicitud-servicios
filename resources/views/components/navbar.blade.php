@@ -15,6 +15,9 @@
             <ul class="navbar-nav gap-3">
                 @auth
                 @if(auth()->user()->isProvider())
+                <li class="nav-item"><a class="nav-link text-dark fw-semibold" href="{{ route('dashboard') }}">Inicio</a></li>
+                <li class="nav-item"><a class="nav-link text-secondary" href="{{ route('provider.services.select') }}">Agendamientos</a></li>
+                <li class="nav-item"><a class="nav-link text-secondary" href="{{ route('provider.requests.create') }}">Solicitudes</a></li>
                 <li class="nav-item">
                     <a class="nav-link text-dark fw-bold active" href="{{ route('provider.requests.hub') }}">
                         <i class="bi bi-grid-fill me-1 text-primary"></i> Panel de Gestión
@@ -46,10 +49,16 @@
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow border-0">
                     @auth
-                    @if(!auth()->user()->isProvider() && auth()->user()->role !== 'bodega')
+                    @if(auth()->user()->role !== 'bodega')
                     <!-- Opción extra para móviles donde el botón superior se oculta -->
-                    <li><a class="dropdown-item d-lg-none" href="{{ route('client.requests.create') }}">Agendar Cita</a></li>
+                    <li><a class="dropdown-item d-lg-none" href="{{ auth()->user()->isProvider() ? route('provider.services.select') : route('client.services.select') }}">Agendar Cita</a></li>
+
+                    @if(auth()->user()->isProvider())
+                    <li><a class="dropdown-item" href="{{ route('provider.requests.hub') }}">Panel de Gestión</a></li>
+                    @else
                     <li><a class="dropdown-item" href="{{ route('client.requests.hub') }}">Mis Solicitudes</a></li>
+                    @endif
+
                     <li>
                         <hr class="dropdown-divider">
                     </li>
@@ -63,9 +72,10 @@
                     </li>
                 </ul>
             </div>
+
             @auth
-            @if(!auth()->user()->isProvider() && auth()->user()->role !== 'bodega')
-            <a href="{{ route('client.services.select') }}" class="btn btn-primary text-white fw-bold px-3 py-2 rounded-pill shadow-sm d-none d-lg-inline-block">
+            @if(auth()->user()->role !== 'bodega')
+            <a href="{{ auth()->user()->isProvider() ? route('provider.services.select') : route('client.services.select') }}" class="btn btn-primary text-white fw-bold px-3 py-2 rounded-pill shadow-sm d-none d-lg-inline-block">
                 <i class="bi bi-plus-circle me-1"></i> Agendar Cita
             </a>
             @endif

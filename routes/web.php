@@ -17,14 +17,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
         $user = auth()->user();
 
-        if ($user->isProvider()) {
-            return redirect()->route('provider.requests.hub');
-        }
-
         if ($user->role === 'bodega') {
             return redirect()->route('bodega.requests.index');
         }
 
+        // Tanto Cliente como Proveedor entran ahora a la vista de bienvenida
         return view('client.welcome');
     })->name('dashboard');
 
@@ -62,28 +59,43 @@ Route::middleware(['auth'])->group(function () {
 
     // Rutas del Proveedor
     Route::middleware(['role:proveedor'])->prefix('proveedor')->name('provider.')->group(function () {
-        
-        // Hub Principal con las dos tarjetas
+
         Route::get('/gestion', function () {
             return view('provider.requests.hub');
         })->name('requests.hub');
 
-        // 1. Listado exclusivo de Solicitudes (Compras / Instalaciones)
+        // Solicitudes
         Route::get('/solicitudes', [ProviderRequestController::class, 'index'])->name('requests.index');
-        
-        // 2. Listado exclusivo de Agendamientos (Citas de Auditoría / Mantenimiento)
+        Route::get('/solicitudes/crear', [ProviderRequestController::class, 'create'])->name('requests.create');
+        Route::post('/solicitudes/datos', [ProviderRequestController::class, 'storeStepOne'])->name('requests.stepOne');
+        Route::get('/catalogo', [ProviderRequestController::class, 'catalog'])->name('requests.catalog');
+        Route::post('/carrito/agregar', [ProviderRequestController::class, 'addToCart'])->name('cart.add');
+        Route::delete('/carrito/quitar/{productId}', [ProviderRequestController::class, 'removeFromCart'])->name('cart.remove');
+        Route::post('/solicitudes/confirmar', [ProviderRequestController::class, 'confirmOrder'])->name('requests.confirm');
+        Route::patch('/solicitudes/{serviceRequest}/estado', [ProviderRequestController::class, 'updateStatus'])->name('requests.updateStatus');
+
+        // Agendamientos (Listado)
         Route::get('/agendamientos', [ProviderRequestController::class, 'appointmentsIndex'])->name('appointments.index');
 
-        // Cambio de estado (sirve para ambos módulos)
-        Route::patch('/solicitudes/{serviceRequest}/estado', [ProviderRequestController::class, 'updateStatus'])
-            ->name('requests.updateStatus');
+        // Agendamientos (Proceso de reserva y selección de servicios)
+        Route::get('/agendamientos/seleccionar', [ProviderRequestController::class, 'selectService'])->name('services.select');
+        Route::get('/agendamientos/reservar', [ProviderRequestController::class, 'bookAppointment'])->name('services.book');
+        Route::post('/agendamientos/guardar', [ProviderRequestController::class, 'storeAppointment'])->name('services.store');
+        Route::post('/agendamientos/seleccionar-instalacion', [ProviderRequestController::class, 'showInstallationSelector'])->name('services.selectInstallation');
+        Route::post('/agendamientos/guardar-mantenimiento', [ProviderRequestController::class, 'storeMaintenance'])->name('services.storeMaintenance');
     });
 
     // Rutas de Bodega
     Route::middleware(['role:bodega'])->prefix('bodega')->name('bodega.')->group(function () {
         Route::get('/solicitudes', [App\Http\Controllers\Warehouse\ServiceRequestController::class, 'index'])->name('requests.index');
+
+        // Nuevas rutas para agendar la instalación antes de despachar
+        Route::get('/solicitudes/{serviceRequest}/agendar', [App\Http\Controllers\Warehouse\ServiceRequestController::class, 'scheduleForm'])->name('requests.scheduleForm');
+        Route::post('/solicitudes/{serviceRequest}/agendar', [App\Http\Controllers\Warehouse\ServiceRequestController::class, 'storeSchedule'])->name('requests.storeSchedule');
+
         Route::patch('/solicitudes/{serviceRequest}/estado', [App\Http\Controllers\Warehouse\ServiceRequestController::class, 'updateStatus'])
             ->name('requests.updateStatus');
+        Route::get('/instaladores-disponibles', [App\Http\Controllers\Warehouse\ServiceRequestController::class, 'getAvailableInstallers'])->name('requests.availableInstallers');
     });
 });
 

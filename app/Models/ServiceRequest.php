@@ -58,4 +58,9 @@ class ServiceRequest extends Model
     {
         return $this->hasMany(RequestItem::class);
     }
+
+    public function installer()
+    {
+        return $this->belongsTo(Installer::class, 'installer_id');
+    }
 }

@@ -1,3 +1,7 @@
+@php
+$routePrefix = auth()->user()->isProvider() ? 'provider.' : 'client.';
+@endphp
+
 <!DOCTYPE html>
 <html lang="es">
 
@@ -9,7 +13,6 @@
         background-color: #f8f9fa;
     }
 </style>
-
 
 <body class="bg-light">
 
@@ -24,7 +27,7 @@
                 <h2 class="fw-bold text-dark mb-0">Selección de Equipos</h2>
                 <p class="text-muted small mb-0">Agregue los dispensadores o equipos requeridos para su solicitud.</p>
             </div>
-            <a href="{{ route('client.requests.create') }}" class="btn btn-outline-secondary rounded-pill px-4">
+            <a href="{{ route($routePrefix . 'requests.create') }}" class="btn btn-outline-secondary rounded-pill px-4">
                 <i class="bi bi-arrow-left me-1"></i> Editar Datos del Servicio
             </a>
         </div>
@@ -61,7 +64,7 @@
                                     </p>
                                 </div>
 
-                                <form action="{{ route('client.cart.add') }}" method="POST" class="d-flex gap-2 align-items-center mt-2">
+                                <form action="{{ route($routePrefix . 'cart.add') }}" method="POST" class="d-flex gap-2 align-items-center mt-2">
                                     @csrf
                                     <input type="hidden" name="product_id" value="{{ $product->id }}">
 
@@ -107,7 +110,7 @@
                                         Cantidad: {{ $item['quantity'] }}
                                     </span>
                                 </div>
-                                <form action="{{ route('client.cart.remove', $id) }}" method="POST">
+                                <form action="{{ route($routePrefix . 'cart.remove', $id) }}" method="POST">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn btn-sm btn-outline-danger border-0 rounded-circle" title="Quitar">
@@ -118,7 +121,7 @@
                             @endforeach
                         </ul>
 
-                        <form action="{{ route('client.requests.confirm') }}" method="POST">
+                        <form action="{{ route($routePrefix . 'requests.confirm') }}" method="POST">
                             @csrf
                             <button type="submit" class="btn btn-success w-100 py-3 fw-bold rounded-3 shadow">
                                 <i class="bi bi-check2-circle me-1"></i> Confirmar Solicitud

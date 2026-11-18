@@ -41,9 +41,9 @@
                         <thead class="table-light text-uppercase fs-7 text-muted tracking-wider">
                             <tr>
                                 <th class="py-3 px-4">Productos / Equipos</th>
-                                <th class="py-3 px-4">Tipo</th>
                                 <th class="py-3 px-4">Dirección</th>
                                 <th class="py-3 px-4">Programación</th>
+                                <th class="py-3 px-4">Instalación Programada</th>
                                 <th class="py-3 px-4">Estado</th>
                             </tr>
                         </thead>
@@ -117,19 +117,22 @@
                                         </div>
                                     </div>
                                 </td>
+                                <td class="py-3 px-4 text-secondary small">
+                                    <i class="bi bi-geo-alt me-1 text-danger"></i> {{ $req->address }}
+                                </td>
                                 <td class="py-3 px-4">
                                     <span class="badge bg-light text-dark border px-2 py-1 text-uppercase fw-bold fs-7">
                                         {{ $req->type }}
                                     </span>
                                 </td>
                                 <td class="py-3 px-4 text-secondary small">
-                                    <i class="bi bi-geo-alt me-1 text-danger"></i> {{ $req->address }}
-                                </td>
-                                <td class="py-3 px-4 text-secondary small">
-                                    @if(in_array(strtolower($req->type), ['mantenimiento', 'auditoría', 'auditoria']) && $req->scheduled_date)
-                                    <i class="bi bi-calendar-event me-1"></i> {{ \Carbon\Carbon::parse($req->scheduled_date)->format('d/m/Y') }} - {{ $req->scheduled_time }}
+                                    @if($req->scheduled_date)
+                                    <div class="small fw-bold text-success">
+                                        <i class="bi bi-calendar-check me-1"></i> {{ \Carbon\Carbon::parse($req->scheduled_date)->format('d/m/Y') }}
+                                    </div>
+                                    <div class="small text-muted">{{ $req->scheduled_time }}</div>
                                     @else
-                                    <span class="text-muted fst-italic">Inmediata / Instalación</span>
+                                    <span class="badge bg-secondary-subtle text-secondary">Sin agendar</span>
                                     @endif
                                 </td>
                                 <td class="py-3 px-4">

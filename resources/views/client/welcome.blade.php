@@ -27,12 +27,15 @@
                 <div class="col-lg-8">
                     <h1 class="display-4 fw-bold mb-3">Overall TrackField</h1>
                     <p class="lead text-light mb-4">Elige el servicio a solicitar</p>
+                    @php
+                    $routePrefix = auth()->user()->isProvider() ? 'provider.' : 'client.';
+                    @endphp
 
                     <div class="d-flex flex-wrap gap-3">
-                        <a href="{{ route('client.requests.create') }}" class="btn btn-light text-dark fw-bold px-4 py-3 rounded-3">
+                        <a href="{{ route($routePrefix . 'requests.create') }}" class="btn btn-light text-dark fw-bold px-4 py-3 rounded-3">
                             Agendar Instalación
                         </a>
-                        <a href="{{ route('client.services.select') }}" class="btn btn-light text-dark fw-bold px-4 py-3 rounded-3">
+                        <a href="{{ route($routePrefix . 'services.select') }}" class="btn btn-light text-dark fw-bold px-4 py-3 rounded-3">
                             Agendar Mantenimiento o Auditoría
                         </a>
                     </div>
