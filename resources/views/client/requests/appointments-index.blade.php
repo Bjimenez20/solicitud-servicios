@@ -26,8 +26,13 @@
         @endif
 
         <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="card-header bg-white py-3 px-4 border-bottom">
+            <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold text-dark fs-6"><i class="bi bi-calendar-event me-2 text-success"></i> Listado de Citas Programadas</h5>
+                @if(method_exists($appointments, 'total'))
+                <span class="badge bg-light text-muted border rounded-pill px-3 py-2 small">
+                    Mostrando {{ $appointments->firstItem() ?? 0 }}–{{ $appointments->lastItem() ?? 0 }} de {{ $appointments->total() }}
+                </span>
+                @endif
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -44,6 +49,10 @@
                         </thead>
                         <tbody>
                             @forelse($appointments as $app)
+                            @php
+                            $addressDisplay = $app->client?->address ?? 'N/A';
+                            $cityDisplay = $app->client?->city ?? null;
+                            @endphp
                             <tr>
                                 <td class="py-3 px-4">
                                     <span class="badge bg-info-subtle text-info-emphasis border px-3 py-2 rounded-pill fw-bold text-uppercase">
@@ -55,7 +64,10 @@
                                     {{ \Carbon\Carbon::parse($app->scheduled_date)->format('d/m/Y') }} - {{ $app->scheduled_time }}
                                 </td>
                                 <td class="py-3 px-4 text-secondary small">
-                                    <i class="bi bi-geo-alt text-danger me-1"></i> {{ $app->address }}
+                                    @if($cityDisplay)
+                                    <div class="text-muted ms-3">{{ $cityDisplay }}</div>
+                                    @endif
+                                    <div><i class="bi bi-geo-alt text-danger me-1"></i> {{ $addressDisplay }}</div>
                                 </td>
                                 <td class="py-3 px-4">
                                     <span class="text-secondary small">
@@ -94,7 +106,7 @@
                                     @elseif($app->status === 'realizado')
                                     <span class="text-success small fw-semibold"><i class="bi bi-shield-check me-1"></i> Servicio completado</span>
                                     @else
-                                    <span class="text-muted small fst-italic">Esperando confirmación</span>
+                                    <span class="text-danger small fst-italic">Servicio cancelado</span>
                                     @endif
                                 </td>
                             </tr>
@@ -112,6 +124,16 @@
                     </table>
                 </div>
             </div>
+            @if(method_exists($appointments, 'hasPages') && $appointments->hasPages())
+            <div class="card-footer bg-white py-3 px-4 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
+                <div class="text-muted small">
+                    Página {{ $appointments->currentPage() }} de {{ $appointments->lastPage() }}
+                </div>
+                <div>
+                    {{ $appointments->links() }}
+                </div>
+            </div>
+            @endif
         </div>
     </div>
     <x-footer />

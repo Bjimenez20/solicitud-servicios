@@ -30,6 +30,16 @@ class User extends Authenticatable
         ];
     }
 
+    public function providerProfile()
+    {
+        return $this->hasOne(Provider::class);
+    }
+
+    public function clientProfile()
+    {
+        return $this->hasOne(Client::class);
+    }
+
     public function isClient(): bool
     {
         return $this->role === 'cliente';
@@ -41,6 +51,11 @@ class User extends Authenticatable
     }
 
     public function isBodega()
+    {
+        return $this->role === 'bodega';
+    }
+
+    public function isWarehouse(): bool
     {
         return $this->role === 'bodega';
     }

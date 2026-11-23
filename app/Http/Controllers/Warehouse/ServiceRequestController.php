@@ -3,30 +3,25 @@
 namespace App\Http\Controllers\Warehouse;
 
 use App\Http\Controllers\Controller;
+use App\Models\Installer;
 use App\Models\ServiceRequest;
 use Illuminate\Http\Request;
-use App\Models\Installer;
+use Carbon\Carbon;
 
 class ServiceRequestController extends Controller
 {
-    /**
-     * Lista las solicitudes relevantes para bodega (Excluyendo agendamientos de mantenimiento y auditoría).
-     */
     public function index()
     {
-        // Trae únicamente solicitudes de compra/instalación confirmadas o despachadas
-        $requests = ServiceRequest::with(['client', 'product'])
+        $requests = ServiceRequest::with(['client.user', 'provider.user', 'installer', 'items.product'])
             ->whereIn('status', ['confirmada', 'despachado'])
-            ->whereNotIn('type', ['mantenimiento', 'auditoría', 'auditoria']) // <-- FILTRO CLAVE
+            ->whereNotIn('type', ['mantenimiento', 'auditoria'])
             ->latest()
-            ->get();
+            ->paginate(6)
+            ->withQueryString();
 
         return view('bodega.requests.index', compact('requests'));
     }
 
-    /**
-     * Cambia el estado de la solicitud a 'despachado'.
-     */
     public function updateStatus(Request $request, ServiceRequest $serviceRequest)
     {
         $request->validate([
@@ -44,17 +39,13 @@ class ServiceRequestController extends Controller
         return back()->with('success', "La solicitud #{$serviceRequest->id} ha sido marcada como despachada.");
     }
 
-    /**
-     * Muestra la vista del calendario para que bodega elija fecha y hora de instalación.
-     */
     public function scheduleForm(ServiceRequest $serviceRequest)
     {
+        $serviceRequest->load(['client', 'provider', 'installer', 'items.product']);
+
         return view('bodega.requests.schedule', compact('serviceRequest'));
     }
 
-    /**
-     * Guarda la fecha y hora de instalación y actualiza el estado a despachado (o el que consideres).
-     */
     public function storeSchedule(Request $request, ServiceRequest $serviceRequest)
     {
         $data = $request->validate([
@@ -63,7 +54,8 @@ class ServiceRequestController extends Controller
             'installer_id'   => 'required|exists:installers,id',
         ]);
 
-        // Validar estrictamente que el instalador no tenga cruce de horario
+        $formattedTime = Carbon::parse($data['scheduled_time'])->format('H:i:s');
+
         $exists = ServiceRequest::where('scheduled_date', $data['scheduled_date'])
             ->where('scheduled_time', $data['scheduled_time'])
             ->where('installer_id', $data['installer_id'])
@@ -97,7 +89,8 @@ class ServiceRequestController extends Controller
             return response()->json(['installers' => []]);
         }
 
-        // 1. Obtener los IDs de los instaladores que YA tienen una solicitud activa en esa fecha y hora exacta
+        $formattedTime = \Carbon\Carbon::parse($time)->format('H:i:s');
+
         $busyInstallerIds = ServiceRequest::where('scheduled_date', $date)
             ->where('scheduled_time', $time)
             ->whereIn('status', ['despachado', 'instalado', 'confirmada'])
@@ -105,9 +98,7 @@ class ServiceRequestController extends Controller
             ->pluck('installer_id')
             ->toArray();
 
-        // 2. Consultar de la base de datos solo los instaladores activos que NO estén en la lista de ocupados
-        $availableInstallers = Installer::where('is_active', true)
-            ->whereNotIn('id', $busyInstallerIds)
+        $availableInstallers = Installer::whereNotIn('id', $busyInstallerIds)
             ->get(['id', 'name']);
 
         return response()->json(['installers' => $availableInstallers]);

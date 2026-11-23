@@ -3,93 +3,125 @@
 namespace App\Http\Controllers\Provider;
 
 use App\Http\Controllers\Controller;
-use App\Models\ServiceRequest;
+use App\Models\Client;
 use App\Models\Product;
+use App\Models\Provider;
+use App\Models\ServiceRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class ServiceRequestController extends Controller
 {
-    /**
-     * Muestra el listado exclusivo de Solicitudes de Equipos / Instalaciones (Excluyendo agendamientos).
-     */
+    private function currentProvider(): Provider
+    {
+        $user = auth()->user();
+
+        return Provider::firstOrCreate(
+            ['user_id' => $user->id],
+            [
+                'business_name' => $user->name,
+                'email'         => $user->email,
+            ]
+        );
+    }
+
+    private function normalizeType(string $type): string
+    {
+        return Str::of($type)->ascii()->lower()->value();
+    }
+
     public function index()
     {
-        $requests = ServiceRequest::whereNotIn('type', ['mantenimiento', 'auditoría', 'auditoria'])
-            ->with(['client', 'items.product'])
+        $requests = ServiceRequest::whereNotIn('type', ['mantenimiento', 'auditoria'])
+            ->with(['client.user', 'provider.user', 'installer', 'items.product'])
             ->latest()
-            ->get();
+            ->paginate(5)
+            ->withQueryString();
 
         return view('provider.requests.index', compact('requests'));
     }
 
-    /**
-     * Muestra el listado exclusivo de Agendamientos (Auditorías y Mantenimientos).
-     */
     public function appointmentsIndex()
     {
-        $appointments = ServiceRequest::whereIn('type', ['mantenimiento', 'auditoría', 'auditoria'])
-            ->with(['client', 'items.product'])
+        $appointments = ServiceRequest::whereIn('type', ['mantenimiento', 'auditoria'])
+            ->with(['client.user', 'provider.user', 'installer', 'items.product'])
             ->latest()
-            ->get();
+            ->paginate(6)
+            ->withQueryString();
 
         return view('provider.requests.appointments-index', compact('appointments'));
     }
 
-    /**
-     * Actualiza el estado de una solicitud o agendamiento.
-     */
+    public function storeAppointment(Request $request)
+    {
+        $data = $request->validate([
+            'client_id'      => 'required|exists:clients,id',
+            'scheduled_date' => 'required|date',
+            'scheduled_time' => 'required|string',
+            'type'           => 'required|string',
+            'notes'          => 'nullable|string',
+        ]);
+
+        $provider = $this->currentProvider();
+
+        ServiceRequest::create([
+            'created_by_user_id' => auth()->id(),
+            'client_id'          => $data['client_id'],
+            'provider_id'        => $provider->id,
+            'type'               => $this->normalizeType($data['type']),
+            'scheduled_date'     => $data['scheduled_date'],
+            'scheduled_time'     => $data['scheduled_time'],
+            'message_subject'    => 'Agendamiento de ' . $data['type'],
+            'notes'              => $data['notes'] ?? null,
+            'status'             => 'pendiente',
+        ]);
+
+        return redirect()->route('provider.requests.index')
+            ->with('success', '¡Cita de ' . $data['type'] . ' agendada con éxito!');
+    }
+
     public function updateStatus(Request $request, ServiceRequest $serviceRequest)
     {
+        $provider = $this->currentProvider();
+
         $request->validate([
-            'status' => 'required|in:pendiente,confirmada,cancelada,despachado,instalado,realizado',
+            'status'         => 'required|in:pendiente,confirmada,cancelada,despachado,instalado,realizado',
+            'provider_notes' => 'nullable|string',
         ]);
 
         $serviceRequest->update([
-            'status' => $request->status,
+            'provider_id'    => $serviceRequest->provider_id ?? $provider->id,
+            'status'         => $request->status,
+            'provider_notes' => $request->provider_notes ?? $serviceRequest->provider_notes,
         ]);
 
         return back()->with('success', 'El estado del registro #' . $serviceRequest->id . ' ha sido actualizado a ' . ucfirst($request->status) . '.');
     }
 
-    // ==========================================
-    // MÓDULO DE CREACIÓN DE SOLICITUDES
-    // ==========================================
-
-    /**
-     * Paso 1: Muestra el formulario para ingresar datos iniciales de la solicitud.
-     */
     public function create()
     {
-        return view('client.requests.create');
+        $clients = Client::with('user')->orderBy('business_name')->get();
+        $provider = Provider::where('user_id', auth()->id())->first();
+
+        return view('client.requests.create', compact('clients', 'provider'));
     }
 
-    /**
-     * Almacena los datos del paso 1 en la sesión y redirige al catálogo.
-     */
     public function storeStepOne(Request $request)
     {
         $validated = $request->validate([
-            'distributor_name'  => 'required|string|max:255',
-            'distributor_nit'   => 'required|string|max:50',
-            'address'           => 'required|string|max:255',
-            'city'              => 'required|string|max:100',
-            'executive'         => 'required|string|max:255',
-            'segment'           => 'required|string|max:100',
-            'negotiation_date'  => 'required|date',
-            'responsible_name'  => 'required|string|max:255',
-            'responsible_phone' => 'required|string|max:50',
-            'responsible_email' => 'required|email|max:255',
-            'message_subject'   => 'nullable|string|max:255',
+            'client_id'       => 'required|exists:clients,id',
+            'type'            => 'nullable|string|max:50',
+            'message_subject' => 'nullable|string|max:255',
+            'notes'           => 'nullable|string',
         ]);
 
+        $validated['type'] = $this->normalizeType($validated['type'] ?? 'instalacion');
         session(['service_request_data' => $validated]);
 
         return redirect()->route('provider.requests.catalog');
     }
 
-    /**
-     * Paso 2: Muestra el catálogo de productos y el carrito actual.
-     */
     public function catalog()
     {
         if (!session()->has('service_request_data')) {
@@ -103,9 +135,6 @@ class ServiceRequestController extends Controller
         return view('client.requests.catalog', compact('products', 'cart'));
     }
 
-    /**
-     * Agrega un producto al carrito almacenado en sesión.
-     */
     public function addToCart(Request $request)
     {
         $request->validate([
@@ -122,7 +151,6 @@ class ServiceRequestController extends Controller
             $product = Product::findOrFail($productId);
             $cart[$productId] = [
                 'name'     => $product->name,
-                'price'    => $product->price ?? 0,
                 'quantity' => $request->quantity,
             ];
         }
@@ -132,9 +160,6 @@ class ServiceRequestController extends Controller
         return back()->with('success', 'Producto agregado al carrito.');
     }
 
-    /**
-     * Remueve un producto del carrito.
-     */
     public function removeFromCart($productId)
     {
         $cart = session()->get('service_request_cart', []);
@@ -147,9 +172,6 @@ class ServiceRequestController extends Controller
         return back()->with('success', 'Producto removido del carrito.');
     }
 
-    /**
-     * Paso 3: Confirma la orden y guarda la solicitud junto con sus ítems en la base de datos.
-     */
     public function confirmOrder(Request $request)
     {
         $data = session('service_request_data');
@@ -160,21 +182,16 @@ class ServiceRequestController extends Controller
                 ->with('error', 'No hay datos o productos en el carrito para procesar.');
         }
 
+        $provider = $this->currentProvider();
+
         $serviceRequest = ServiceRequest::create([
-            'client_id'         => auth()->id(),
-            'type'              => 'instalacion',
-            'status'            => 'pendiente',
-            'distributor_name'  => $data['distributor_name'],
-            'distributor_nit'   => $data['distributor_nit'],
-            'address'           => $data['address'],
-            'city'              => $data['city'],
-            'executive'         => $data['executive'],
-            'segment'           => $data['segment'],
-            'negotiation_date'  => $data['negotiation_date'],
-            'responsible_name'  => $data['responsible_name'],
-            'responsible_phone' => $data['responsible_phone'],
-            'responsible_email' => $data['responsible_email'],
-            'message_subject'   => $data['message_subject'] ?? 'Solicitud creada por Proveedor',
+            'created_by_user_id' => auth()->id(),
+            'client_id'          => $data['client_id'],
+            'provider_id'        => $provider->id,
+            'type'               => $this->normalizeType($data['type'] ?? 'instalacion'),
+            'status'             => 'pendiente',
+            'message_subject'    => $data['message_subject'] ?? 'Solicitud creada por Proveedor',
+            'notes'              => $data['notes'] ?? null,
         ]);
 
         foreach ($cart as $productId => $item) {
@@ -190,42 +207,40 @@ class ServiceRequestController extends Controller
             ->with('success', '¡Solicitud creada exitosamente con ID #' . $serviceRequest->id . '!');
     }
 
-    // ==========================================
-    // MÓDULO DE AGENDAMIENTOS Y CITAS
-    // ==========================================
-
-    /**
-     * Muestra la vista para seleccionar el tipo de servicio a agendar (Auditoría o Mantenimiento).
-     */
     public function selectService()
     {
         return view('client.requests.select-service');
     }
 
-    /**
-     * Muestra la vista del calendario para reservar fecha y hora.
-     */
     public function bookAppointment(Request $request)
     {
-        $type = $request->query('tipo', 'Auditoría');
-        return view('client.requests.book-appointment', compact('type'));
+        $type = $request->query('tipo', 'Mantenimiento');
+        $clients = Client::orderBy('business_name')->get();
+
+        return view('client.requests.book-appointment', compact('type', 'clients'));
     }
 
-    /**
-     * Muestra el selector de instalaciones previas para vincular el mantenimiento o auditoría.
-     */
     public function showInstallationSelector(Request $request)
     {
+        $provider = $this->currentProvider();
+
         $data = $request->validate([
             'scheduled_date' => 'required|date',
             'scheduled_time' => 'required|string',
             'type'           => 'required|string',
+            'client_id'      => 'nullable|exists:clients,id',
         ]);
 
-        $installedRequests = ServiceRequest::where('status', 'instalado')
-            ->with('items.product')
-            ->latest()
-            ->get();
+        $query = ServiceRequest::where('status', 'instalado')
+            ->where('status', 'instalado')
+            ->with(['client.user', 'provider', 'items.product'])
+            ->latest();
+
+        if (!empty($data['client_id'])) {
+            $query->where('client_id', $data['client_id']);
+        }
+
+        $installedRequests = $query->get();
 
         return view('client.requests.select-installation', [
             'installedRequests' => $installedRequests,
@@ -235,37 +250,31 @@ class ServiceRequestController extends Controller
         ]);
     }
 
-    /**
-     * Almacena el agendamiento vinculado en la base de datos.
-     */
     public function storeMaintenance(Request $request)
     {
+        $provider = $this->currentProvider();
+
         $data = $request->validate([
             'scheduled_date'     => 'required|date',
             'scheduled_time'     => 'required|string',
             'type'               => 'required|string',
             'service_request_id' => 'required|exists:service_requests,id',
+            'notes'              => 'nullable|string',
         ]);
 
         $originalRequest = ServiceRequest::with('items')->findOrFail($data['service_request_id']);
+        $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
 
         $newRequest = ServiceRequest::create([
-            'client_id'         => auth()->id(),
-            'type'              => strtolower($data['type']),
-            'scheduled_date'    => $data['scheduled_date'],
-            'scheduled_time'    => $data['scheduled_time'],
-            'address'           => $originalRequest->address,
-            'city'              => $originalRequest->city,
-            'status'            => 'confirmada', // Nace confirmada al ser creada directamente por el proveedor
-            'distributor_name'  => $originalRequest->distributor_name ?? auth()->user()->name,
-            'distributor_nit'   => $originalRequest->distributor_nit ?? 'N/A',
-            'executive'         => $originalRequest->executive ?? 'Ejecutivo Proveedor',
-            'segment'           => $originalRequest->segment ?? 'Empresarial',
-            'negotiation_date'  => now(),
-            'responsible_name'  => $originalRequest->responsible_name ?? auth()->user()->name,
-            'responsible_phone' => $originalRequest->responsible_phone ?? '+57 3000000000',
-            'responsible_email' => $originalRequest->responsible_email ?? auth()->user()->email,
-            'message_subject'   => $data['type'] . ' vinculado a Instalación #' . $originalRequest->id,
+            'created_by_user_id' => auth()->id(),
+            'client_id'          => $originalRequest->client_id,
+            'provider_id'        => $provider->id,
+            'type'               => $this->normalizeType($data['type']),
+            'scheduled_date'     => $data['scheduled_date'],
+            'scheduled_time'     => $data['scheduled_time'],
+            'status'             => 'confirmada',
+            'message_subject'    => $data['type'] . ' vinculado a Instalación #' . $originalRequest->id,
+            'notes'              => $data['notes'] ?? $originalRequest->notes,
         ]);
 
         foreach ($originalRequest->items as $item) {

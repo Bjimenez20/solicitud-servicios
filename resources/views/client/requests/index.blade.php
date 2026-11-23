@@ -32,8 +32,13 @@
 
         <!-- Tarjeta contenedora de la tabla -->
         <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="card-header bg-white py-3 px-4 border-bottom">
+            <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold text-dark fs-6"><i class="bi bi-card-list me-2 text-primary"></i> Listado de Pedidos y Servicios</h5>
+                @if(method_exists($requests, 'total'))
+                <span class="badge bg-light text-muted border rounded-pill px-3 py-2 small">
+                    Mostrando {{ $requests->firstItem() ?? 0 }}–{{ $requests->lastItem() ?? 0 }} de {{ $requests->total() }}
+                </span>
+                @endif
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -49,6 +54,10 @@
                         </thead>
                         <tbody>
                             @forelse($requests as $req)
+                            @php
+                            $addressDisplay = $req->client?->address ?? $req->address ?? 'N/A';
+                            $cityDisplay = $req->client?->city ?? $req->city ?? 'N/A';
+                            @endphp
                             <tr>
                                 <td class="py-3 px-4">
                                     <!-- Botón interactivo que despliega el modal con los productos del carrito -->
@@ -68,8 +77,8 @@
                                                 </div>
                                                 <div class="modal-body p-4">
                                                     <p class="text-muted small mb-3">
-                                                        <strong>Dirección:</strong> {{ $req->address }}<br>
-                                                        <strong>Ciudad:</strong> {{ $req->city ?? 'N/A' }}
+                                                        <strong>Dirección:</strong> {{ $addressDisplay }}<br>
+                                                        <strong>Ciudad:</strong> {{ $cityDisplay }}
                                                     </p>
 
                                                     <div class="table-responsive mb-3">
@@ -99,7 +108,7 @@
                                                     <form action="{{ route('client.requests.updateStatus', $req) }}" method="POST" class="d-grid">
                                                         @csrf
                                                         @method('PATCH')
-                                                        <input type="hidden" name="status" value="instalado"> <!-- O el estado que prefieras para finalizar -->
+                                                        <input type="hidden" name="status" value="instalado">
                                                         <button type="submit" class="btn btn-success fw-bold py-2 rounded-pill shadow-sm">
                                                             <i class="bi bi-check2-all me-1"></i> Confirmar Instalación
                                                         </button>
@@ -118,7 +127,7 @@
                                     </div>
                                 </td>
                                 <td class="py-3 px-4 text-secondary small">
-                                    <i class="bi bi-geo-alt me-1 text-danger"></i> {{ $req->address }}
+                                    <i class="bi bi-geo-alt me-1 text-danger"></i> {{ $addressDisplay }}
                                 </td>
                                 <td class="py-3 px-4">
                                     <span class="badge bg-light text-dark border px-2 py-1 text-uppercase fw-bold fs-7">
@@ -131,6 +140,9 @@
                                         <i class="bi bi-calendar-check me-1"></i> {{ \Carbon\Carbon::parse($req->scheduled_date)->format('d/m/Y') }}
                                     </div>
                                     <div class="small text-muted">{{ $req->scheduled_time }}</div>
+                                    <div class="small text-primary fw-semibold mt-1">
+                                        <i class="bi bi-person-badge me-1"></i> {{ $req->installer->name }}
+                                    </div>
                                     @else
                                     <span class="badge bg-secondary-subtle text-secondary">Sin agendar</span>
                                     @endif
@@ -169,6 +181,17 @@
                     </table>
                 </div>
             </div>
+
+            @if(method_exists($requests, 'hasPages') && $requests->hasPages())
+            <div class="card-footer bg-white py-3 px-4 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
+                <div class="text-muted small">
+                    Página {{ $requests->currentPage() }} de {{ $requests->lastPage() }}
+                </div>
+                <div>
+                    {{ $requests->links() }}
+                </div>
+            </div>
+            @endif
         </div>
 
     </div>

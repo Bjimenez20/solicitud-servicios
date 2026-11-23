@@ -10,6 +10,67 @@
         object-fit: cover;
         background-color: #f8f9fa;
     }
+
+    .progress-ring {
+        --size: 46px;
+        --thickness: 5px;
+        --progress: 25%;
+        --ring-color: #ffc107;
+        --track-color: #e9ecef;
+
+        width: var(--size);
+        height: var(--size);
+        border-radius: 50%;
+        background: conic-gradient(var(--ring-color) 0% var(--progress),
+                var(--track-color) var(--progress) 100%);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    .progress-ring::before {
+        content: "";
+        width: calc(var(--size) - (var(--thickness) * 2));
+        height: calc(var(--size) - (var(--thickness) * 2));
+        border-radius: 50%;
+        background-color: #ffffff;
+        position: absolute;
+    }
+
+    .progress-ring span {
+        position: relative;
+        z-index: 1;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #212529;
+        line-height: 1;
+    }
+
+    .pagination {
+        margin-bottom: 0;
+        gap: 4px;
+    }
+
+    .pagination .page-link {
+        border-radius: 0.5rem;
+        color: #1b3a6b;
+        border: 1px solid #dee2e6;
+        font-weight: 600;
+        padding: 0.375rem 0.75rem;
+    }
+
+    .pagination .page-item.active .page-link {
+        background-color: #1b3a6b;
+        border-color: #1b3a6b;
+        color: #ffffff;
+    }
+
+    .pagination .page-link:hover {
+        background-color: #f1f5f9;
+        color: #132b4e;
+    }
 </style>
 
 
@@ -39,8 +100,13 @@
 
         <!-- Tarjeta contenedora de la tabla -->
         <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="card-header bg-white py-3 px-4 border-bottom">
+            <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold text-dark fs-6"><i class="bi bi-tools me-2 text-primary"></i> Bandeja de Solicitudes de Clientes</h5>
+                @if(method_exists($requests, 'total'))
+                <span class="badge bg-light text-muted border rounded-pill px-3 py-2 small">
+                    Mostrando {{ $requests->firstItem() ?? 0 }}–{{ $requests->lastItem() ?? 0 }} de {{ $requests->total() }}
+                </span>
+                @endif
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -52,11 +118,40 @@
                                 <th class="py-3 px-4">Programación</th>
                                 <th class="py-3 px-4">Instalación Programada</th>
                                 <th class="py-3 px-4">Estado</th>
+                                <th class="py-3 px-4 text-center">Progreso</th>
                                 <th class="py-3 px-4 text-center">Gestión / Detalle</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($requests as $req)
+                            @php
+                            $statusMap = [
+                            'pendiente' => ['percent' => 25, 'hex' => '#ffc107', 'color' => 'bg-warning', 'label' => 'Pendiente', 'icon' => 'bi-clock-history', 'badge' => 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                            'confirmada' => ['percent' => 50, 'hex' => '#0d6efd', 'color' => 'bg-primary', 'label' => 'Confirmada', 'icon' => 'bi-check-circle', 'badge' => 'bg-primary-subtle text-primary-emphasis border-primary-subtle'],
+                            'despachado' => ['percent' => 75, 'hex' => '#0dcaf0', 'color' => 'bg-info', 'label' => 'Despachado', 'icon' => 'bi-truck', 'badge' => 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                            'instalado' => ['percent' => 100, 'hex' => '#198754', 'color' => 'bg-success', 'label' => 'Instalado', 'icon' => 'bi-house-check', 'badge' => 'bg-success-subtle text-success-emphasis border-success-subtle'],
+                            'cancelada' => ['percent' => 100, 'hex' => '#dc3545', 'color' => 'bg-danger', 'label' => 'Cancelada', 'icon' => 'bi-x-circle', 'badge' => 'bg-danger-subtle text-danger-emphasis border-danger-subtle'],
+                            ];
+
+                            $currentStatus = $statusMap[$req->status] ?? [
+                            'percent' => 0,
+                            'hex' => '#6c757d',
+                            'color' => 'bg-secondary',
+                            'label' => ucfirst($req->status),
+                            'icon' => 'bi-info-circle',
+                            'badge' => 'bg-secondary-subtle text-secondary-emphasis border-secondary-subtle',
+                            ];
+
+                            $clientProfile = $req->client;
+                            $clientDisplayName = $clientProfile?->business_name
+                            ?? $clientProfile?->user?->name
+                            ?? 'Cliente N/A';
+                            $clientNitDisplay = $clientProfile?->nit ?? 'N/A';
+                            $addressDisplay = $clientProfile?->address ?? 'N/A';
+                            $cityDisplay = $clientProfile?->city ?? 'N/A';
+                            $responsibleDisplay = $clientProfile?->user?->name ?? $clientDisplayName;
+                            $phoneDisplay = $clientProfile?->phone ?? 'N/A';
+                            @endphp
                             <tr>
                                 <!-- Cliente -->
                                 <td class="py-3 px-4 fw-semibold text-dark">
@@ -65,17 +160,16 @@
                                             <i class="bi bi-person"></i>
                                         </div>
                                         <div>
-                                            {{ $req->client->name ?? 'Cliente N/A' }}
-                                            <div class="text-muted small fw-normal">NIT: {{ $req->client_nit ?? 'N/A' }}</div>
+                                            {{ $clientDisplayName }}
+                                            <div class="text-muted small fw-normal">NIT: {{ $clientNitDisplay }}</div>
                                         </div>
                                     </div>
                                 </td>
 
                                 <!-- Tipo & Dirección -->
                                 <td class="py-3 px-4">
-
                                     <div class="text-secondary small">
-                                        <i class="bi bi-geo-alt text-danger me-1"></i> {{ $req->address }}
+                                        <i class="bi bi-geo-alt text-danger me-1"></i> {{ $addressDisplay }}
                                     </div>
                                 </td>
 
@@ -89,6 +183,7 @@
                                     </span>
                                     @endif
                                 </td>
+
                                 <!-- Instalación Programada -->
                                 <td class="py-3 px-4">
                                     @if($req->scheduled_date)
@@ -96,6 +191,9 @@
                                         <i class="bi bi-calendar-check me-1"></i> {{ \Carbon\Carbon::parse($req->scheduled_date)->format('d/m/Y') }}
                                     </div>
                                     <div class="small text-muted">{{ $req->scheduled_time }}</div>
+                                    <div class="small text-primary fw-semibold mt-1">
+                                        <i class="bi bi-person-badge me-1"></i> {{ $req->installer->name }}
+                                    </div>
                                     @else
                                     <span class="badge bg-secondary-subtle text-secondary">Sin agendar</span>
                                     @endif
@@ -103,23 +201,23 @@
 
                                 <!-- Estado -->
                                 <td class="py-3 px-4">
-                                    @if($req->status === 'pendiente')
-                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 rounded-pill fw-bold">
-                                        <i class="bi bi-clock-history me-1"></i> Pendiente
+                                    <span class="badge {{ $currentStatus['badge'] }} border px-3 py-2 rounded-pill fw-bold">
+                                        <i class="bi {{ $currentStatus['icon'] }} me-1"></i> {{ $currentStatus['label'] }}
                                     </span>
-                                    @elseif($req->status === 'confirmada')
-                                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-3 py-2 rounded-pill fw-bold">
-                                        <i class="bi bi-check-circle me-1"></i> Confirmada
-                                    </span>
-                                    @elseif($req->status === 'despachado')
-                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-3 py-2 rounded-pill fw-bold">
-                                        <i class="bi bi-truck me-1"></i> Despachado
-                                    </span>
-                                    @else
-                                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-3 py-2 rounded-pill fw-bold">
-                                        <i class="bi bi-x-circle me-1"></i> {{ ucfirst($req->status) }}
-                                    </span>
-                                    @endif
+                                </td>
+
+                                <!-- Progreso Circular -->
+                                <td class="py-3 px-4 text-center">
+                                    <div class="progress-ring"
+                                        style="--progress: {{ $currentStatus['percent'] }}%; --ring-color: {{ $currentStatus['hex'] }};"
+                                        role="progressbar"
+                                        aria-label="Progreso de solicitud"
+                                        aria-valuenow="{{ $currentStatus['percent'] }}"
+                                        aria-valuemin="0"
+                                        aria-valuemax="100"
+                                        title="{{ $currentStatus['label'] }} ({{ $currentStatus['percent'] }}%)">
+                                        <span>{{ $currentStatus['percent'] }}%</span>
+                                    </div>
                                 </td>
 
                                 <!-- Botón Ver Detalle (Modal que incluye la lista de productos y botones de confirmación) -->
@@ -134,19 +232,35 @@
                                             <div class="modal-content border-0 shadow-lg rounded-4">
                                                 <div class="modal-header bg-light border-0 py-3 px-4">
                                                     <h5 class="modal-title fw-bold text-dark fs-6">
-                                                        <i class="bi bi-box-seam text-primary me-2"></i> Detalle de Solicitud #{{ $req->id }} - {{ $req->client->name ?? 'Cliente' }}
+                                                        <i class="bi bi-box-seam text-primary me-2"></i> Detalle de Solicitud #{{ $req->id }} - {{ $clientDisplayName }}
                                                     </h5>
                                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                 </div>
                                                 <div class="modal-body p-4 text-start">
+                                                    <div class="d-flex align-items-center gap-3 mb-3 bg-light p-3 rounded-3">
+                                                        <div class="progress-ring"
+                                                            style="--progress: {{ $currentStatus['percent'] }}%; --ring-color: {{ $currentStatus['hex'] }};">
+                                                            <span>{{ $currentStatus['percent'] }}%</span>
+                                                        </div>
+                                                        <div class="flex-grow-1">
+                                                            <div class="small fw-bold text-dark">Estado actual: {{ $currentStatus['label'] }}</div>
+                                                            <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 0.72rem;">
+                                                                <span>1. Pendiente (25%)</span>
+                                                                <span>2. Confirmada (50%)</span>
+                                                                <span>3. Despachado (75%)</span>
+                                                                <span>4. Instalado (100%)</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
                                                     <div class="row mb-3 bg-light p-3 rounded-3 small">
                                                         <div class="col-md-6">
-                                                            <strong>Dirección:</strong> {{ $req->address }}<br>
-                                                            <strong>Ciudad:</strong> {{ $req->city ?? 'N/A' }}
+                                                            <strong>Dirección:</strong> {{ $addressDisplay }}<br>
+                                                            <strong>Ciudad:</strong> {{ $cityDisplay }}
                                                         </div>
                                                         <div class="col-md-6">
-                                                            <strong>Responsable:</strong> {{ $req->responsible_name ?? 'N/A' }}<br>
-                                                            <strong>Teléfono:</strong> {{ $req->responsible_phone ?? 'N/A' }}
+                                                            <strong>Responsable:</strong> {{ $responsibleDisplay }}<br>
+                                                            <strong>Teléfono:</strong> {{ $phoneDisplay }}
                                                         </div>
                                                     </div>
 
@@ -217,7 +331,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="text-muted mb-2"><i class="bi bi-clipboard-x display-4"></i></div>
                                     <h6 class="fw-bold text-dark">No hay solicitudes por gestionar</h6>
                                     <p class="text-muted small mb-0">En este momento no existen requerimientos pendientes de clientes.</p>
@@ -228,6 +342,16 @@
                     </table>
                 </div>
             </div>
+            @if(method_exists($requests, 'hasPages') && $requests->hasPages())
+            <div class="card-footer bg-white py-3 px-4 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
+                <div class="text-muted small">
+                    Página {{ $requests->currentPage() }} de {{ $requests->lastPage() }}
+                </div>
+                <div>
+                    {{ $requests->links() }}
+                </div>
+            </div>
+            @endif
         </div>
 
     </div>

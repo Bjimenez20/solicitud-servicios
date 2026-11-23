@@ -1,3 +1,15 @@
+@php
+$isProvider = auth()->user()->isProvider();
+$storeMaintenanceRoute = $isProvider
+? route('provider.services.storeMaintenance')
+: route('client.services.storeMaintenance');
+$backToCalendarRoute = $isProvider
+? route('provider.services.book', ['tipo' => $type])
+: route('client.services.book', ['tipo' => $type]);
+$emptyRequestsRoute = $isProvider
+? route('provider.requests.index')
+: route('client.requests.index');
+@endphp
 <!DOCTYPE html>
 <html lang="es">
 
@@ -13,21 +25,21 @@
         color: #334155;
     }
 
-    .card-installation {
-        transition: all 0.2s ease;
+    .row-installation {
+        transition: background-color 0.15s ease;
         cursor: pointer;
-        border: 2px solid #e2e8f0;
-        background: white;
     }
 
-    .card-installation:hover {
-        border-color: var(--primary-corporate);
-        transform: translateY(-2px);
+    .row-installation:hover {
+        background-color: #f1f5f9 !important;
     }
 
-    .card-installation.selected {
-        border-color: var(--primary-corporate);
-        background-color: #eff6ff;
+    .row-installation.selected {
+        background-color: #eff6ff !important;
+    }
+
+    .row-installation.selected td:first-child {
+        box-shadow: inset 4px 0 0 var(--primary-corporate);
     }
 </style>
 
@@ -39,7 +51,7 @@
 
         <!-- Barra de progreso -->
         <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
-            <a href="{{ route('client.services.book') }}?tipo={{ $type }}" class="text-decoration-none text-muted fw-semibold small d-flex align-items-center">
+            <a href="{{ $backToCalendarRoute }}" class="text-decoration-none text-muted fw-semibold small d-flex align-items-center">
                 <i class="bi bi-arrow-left me-2"></i> Volver al calendario
             </a>
             <div class="text-muted small">
@@ -59,78 +71,124 @@
             </p>
         </div>
 
-        <form action="{{ route('client.services.storeMaintenance') }}" method="POST" id="linkInstallationForm">
+        <form action="{{ $storeMaintenanceRoute }}" method="POST" id="linkInstallationForm">
             @csrf
             <input type="hidden" name="scheduled_date" value="{{ $date }}">
             <input type="hidden" name="scheduled_time" value="{{ $time }}">
             <input type="hidden" name="type" value="{{ $type }}">
+            @if(isset($clientRecordId))
+            <input type="hidden" name="client_record_id" value="{{ $clientRecordId }}">
+            @endif
             <input type="hidden" name="service_request_id" id="selectedRequestId" required>
 
-            <div class="row g-4 mb-4">
-                @forelse($installedRequests as $req)
-                <div class="col-md-6">
-                    <div class="card card-installation p-4 rounded-4 shadow-sm h-100" onclick="selectInstallation(this, '{{ $req->id }}')">
-                        <div class="d-flex justify-content-between align-items-start mb-3">
-                            <div>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill fw-bold mb-2">
-                                    <i class="bi bi-check-circle-fill me-1"></i> Instalado
-                                </span>
-                                <h5 class="fw-bold text-dark mb-0">Solicitud #{{ $req->id }}</h5>
-                                <span class="text-muted small">{{ $req->distributor_name ?? 'Punto Principal' }}</span>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input fs-5" type="radio" name="installation_radio" value="{{ $req->id }}" id="radio{{ $req->id }}">
-                            </div>
-                        </div>
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+                <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold text-dark fs-6">
+                        <i class="bi bi-building-check me-2 text-primary"></i> Puntos Instalados Disponibles
+                    </h5>
+                    <span class="badge bg-light text-secondary border rounded-pill px-3">
+                        {{ $installedRequests->count() }} disponibles
+                    </span>
+                </div>
 
-                        <hr class="opacity-25 my-2">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="table-light text-uppercase small text-muted">
+                                <tr>
+                                    <th class="py-3 px-4 text-center" style="width: 60px;">Sel.</th>
+                                    <th class="py-3 px-4">Solicitud / Punto</th>
+                                    <th class="py-3 px-4">Ubicación</th>
+                                    <th class="py-3 px-4">Equipos a Intervenir</th>
+                                    <th class="py-3 px-4 text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($installedRequests as $req)
+                                @php
+                                $clientProfile = $req->client;
+                                $puntoLabel = $clientProfile?->business_name
+                                ?? $clientProfile?->user?->name
+                                ?? 'Punto Principal';
+                                $addressDisplay = $clientProfile?->address ?? 'No especificada';
+                                $cityDisplay = $clientProfile?->city ?? 'No especificada';
+                                @endphp
+                                <tr class="row-installation" onclick="selectInstallation(this, '{{ $req->id }}')">
+                                    <!-- Radio de selección -->
+                                    <td class="py-3 px-4 text-center">
+                                        <div class="form-check d-flex justify-content-center m-0">
+                                            <input class="form-check-input fs-5"
+                                                type="radio"
+                                                name="installation_radio"
+                                                value="{{ $req->id }}"
+                                                id="radio{{ $req->id }}"
+                                                onclick="event.stopPropagation(); selectInstallation(this.closest('tr'), '{{ $req->id }}')">
+                                        </div>
+                                    </td>
 
-                        <!-- Datos de Ubicación -->
-                        <div class="bg-light p-3 rounded-3 mb-3 small">
-                            <div class="mb-1">
-                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>
-                                <strong>Dirección:</strong> {{ $req->address }}
-                            </div>
-                            <div>
-                                <i class="bi bi-building text-primary me-1"></i>
-                                <strong>Ciudad:</strong> {{ $req->city ?? 'No especificada' }}
-                            </div>
-                        </div>
+                                    <!-- Solicitud y Distribuidor -->
+                                    <td class="py-3 px-4">
+                                        <div class="fw-bold text-dark">Solicitud #{{ $req->id }}</div>
+                                        <div class="text-muted small">{{ $puntoLabel }}</div>
+                                    </td>
 
-                        <!-- Listado de Equipos / Productos vinculados -->
-                        <div class="small">
-                            <strong class="text-dark d-block mb-2"><i class="bi bi-box-seam text-primary me-1"></i> Equipos a intervenir:</strong>
-                            <ul class="list-group list-group-flush border rounded-3">
-                                @forelse($req->items as $item)
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3 bg-transparent">
-                                    <span class="text-secondary fw-medium">{{ $item->product?->name ?? 'Equipo #' . $item->product_id }}</span>
-                                    <span class="badge bg-primary-subtle text-primary rounded-pill">Cant: {{ $item->quantity }}</span>
-                                </li>
+                                    <!-- Ubicación -->
+                                    <td class="py-3 px-4">
+                                        <div class="text-dark fw-medium mb-1">
+                                            <i class="bi bi-geo-alt-fill text-danger me-1"></i> {{ $addressDisplay }}
+                                        </div>
+                                        <div class="text-muted">
+                                            <i class="bi bi-building text-primary me-1"></i> {{ $cityDisplay }}
+                                        </div>
+                                    </td>
+
+                                    <!-- Equipos vinculados -->
+                                    <td class="py-3 px-4">
+                                        @if($req->items->isNotEmpty())
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach($req->items as $item)
+                                            <span class="badge bg-light text-dark border fw-normal py-1 px-2">
+                                                {{ $item->product?->name ?? 'Equipo #' . $item->product_id }}
+                                                <strong class="text-primary ms-1">(x{{ $item->quantity }})</strong>
+                                            </span>
+                                            @endforeach
+                                        </div>
+                                        @else
+                                        <span class="text-muted small fst-italic">Sin equipos detallados</span>
+                                        @endif
+                                    </td>
+
+                                    <!-- Estado -->
+                                    <td class="py-3 px-4 text-center">
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill fw-bold">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Instalado
+                                        </span>
+                                    </td>
+                                </tr>
                                 @empty
-                                <li class="list-group-item text-muted fst-italic py-2 px-3 bg-transparent">Sin equipos detallados</li>
+                                <tr>
+                                    <td colspan="5" class="p-5 text-center">
+                                        <div class="text-muted mb-2"><i class="bi bi-inbox display-4"></i></div>
+                                        <h5 class="fw-bold text-dark">No hay instalaciones previas confirmadas</h5>
+                                        <p class="text-muted small mb-3">
+                                            Para agendar un servicio sobre un punto instalado, primero debe existir una solicitud en estado <strong>Instalado</strong>.
+                                        </p>
+                                        <a href="{{ $emptyRequestsRoute }}" class="btn btn-primary fw-bold px-4 rounded-pill">
+                                            Ir a Solicitudes
+                                        </a>
+                                    </td>
+                                </tr>
                                 @endforelse
-                            </ul>
-                        </div>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                @empty
-                <div class="col-12">
-                    <div class="card border-0 shadow-sm rounded-4 p-5 text-center">
-                        <div class="text-muted mb-2"><i class="bi bi-inbox display-4"></i></div>
-                        <h5 class="fw-bold text-dark">No tienes instalaciones previas confirmadas</h5>
-                        <p class="text-muted small mb-3">Para agendar un servicio sobre un punto instalado, primero debes tener una solicitud en estado <strong>Instalado</strong>.</p>
-                        <div>
-                            <a href="{{ route('client.requests.index') }}" class="btn btn-primary fw-bold px-4 rounded-pill">Ir a Mis Solicitudes</a>
-                        </div>
-                    </div>
-                </div>
-                @endforelse
             </div>
 
             @if($installedRequests->isNotEmpty())
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-center bg-white p-4 rounded-4 shadow-sm border gap-3">
                 <span class="text-muted small" id="selectionHelperText">
-                    <i class="bi bi-info-circle text-primary me-1"></i> Haz clic sobre una tarjeta para seleccionar el punto de servicio.
+                    <i class="bi bi-info-circle text-primary me-1"></i> Haz clic sobre una fila para seleccionar el punto de servicio.
                 </span>
                 <button type="submit" class="btn btn-primary px-5 py-3 fw-bold rounded-3 shadow-sm" style="background-color: #1b3a6b; border: none;">
                     Confirmar y Agendar {{ $type }} <i class="bi bi-check2-all ms-2"></i>
@@ -143,9 +201,9 @@
     <x-footer />
 
     <script>
-        function selectInstallation(cardElement, requestId) {
-            document.querySelectorAll('.card-installation').forEach(c => c.classList.remove('selected'));
-            cardElement.classList.add('selected');
+        function selectInstallation(rowElement, requestId) {
+            document.querySelectorAll('.row-installation').forEach(r => r.classList.remove('selected'));
+            rowElement.classList.add('selected');
 
             document.getElementById('radio' + requestId).checked = true;
             document.getElementById('selectedRequestId').value = requestId;

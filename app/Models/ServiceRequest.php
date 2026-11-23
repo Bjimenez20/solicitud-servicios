@@ -10,57 +10,44 @@ class ServiceRequest extends Model
     use HasFactory;
 
     protected $fillable = [
+        'created_by_user_id',
         'client_id',
         'provider_id',
-        'product_id',
-        'distributor_name',
-        'distributor_nit',
-        'associated_client',
-        'client_nit',
-        'city',
-        'executive',
+        'installer_id',
         'type',
+        'executive',
         'segment',
         'negotiation_date',
-        'responsible_name',
-        'responsible_phone',
-        'responsible_email',
-        'message_subject',
         'scheduled_date',
         'scheduled_time',
-        'address',
+        'message_subject',
         'notes',
         'status',
         'provider_notes',
     ];
 
-    protected $casts = [
-        'scheduled_date' => 'date',
-        'negotiation_date' => 'date',
-    ];
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
 
     public function client()
     {
-        return $this->belongsTo(User::class, 'client_id');
+        return $this->belongsTo(Client::class, 'client_id');
     }
 
     public function provider()
     {
-        return $this->belongsTo(User::class, 'provider_id');
-    }
-
-    public function product()
-    {
-        return $this->belongsTo(Product::class);
-    }
-
-    public function items()
-    {
-        return $this->hasMany(RequestItem::class);
+        return $this->belongsTo(Provider::class, 'provider_id');
     }
 
     public function installer()
     {
         return $this->belongsTo(Installer::class, 'installer_id');
+    }
+
+    public function items()
+    {
+        return $this->hasMany(RequestItem::class, 'service_request_id');
     }
 }

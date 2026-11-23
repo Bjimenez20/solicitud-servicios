@@ -72,7 +72,7 @@
                                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-clock text-primary me-2"></i> 1. Elige la Hora</h6>
                                     <div class="d-flex flex-column gap-2" id="timeSlotsContainer">
                                         @php
-                                        $hours = ['08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'];
+                                        $hours = ['07:00:00', '08:00:00', '09:00:00', '10:00:00', '11:00:00', '14:00:00', '15:00:00', '16:00:00'];
                                         @endphp
                                         @foreach($hours as $hour)
                                         <button type="button" class="time-slot-btn btn btn-outline-light text-dark border py-2 px-3 rounded-3 text-start fw-semibold {{ old('scheduled_time', $serviceRequest->scheduled_time) == $hour ? 'active-slot' : '' }}" data-time="{{ $hour }}">

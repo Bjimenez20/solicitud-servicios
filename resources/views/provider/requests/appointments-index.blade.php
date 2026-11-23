@@ -3,6 +3,32 @@
 
 <x-head />
 
+<style>
+    .pagination {
+        margin-bottom: 0;
+        gap: 4px;
+    }
+
+    .pagination .page-link {
+        border-radius: 0.5rem;
+        color: #1b3a6b;
+        border: 1px solid #dee2e6;
+        font-weight: 600;
+        padding: 0.375rem 0.75rem;
+    }
+
+    .pagination .page-item.active .page-link {
+        background-color: #1b3a6b;
+        border-color: #1b3a6b;
+        color: #ffffff;
+    }
+
+    .pagination .page-link:hover {
+        background-color: #f1f5f9;
+        color: #132b4e;
+    }
+</style>
+
 <body class="bg-light">
 
     <x-navbar />
@@ -26,8 +52,13 @@
         @endif
 
         <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="card-header bg-white py-3 px-4 border-bottom">
+            <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold text-dark fs-6"><i class="bi bi-calendar-event me-2 text-success"></i> Citas Pendientes y Confirmadas</h5>
+                @if(method_exists($appointments, 'total'))
+                <span class="badge bg-light text-muted border rounded-pill px-3 py-2 small">
+                    Mostrando {{ $appointments->firstItem() ?? 0 }}–{{ $appointments->lastItem() ?? 0 }} de {{ $appointments->total() }}
+                </span>
+                @endif
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -35,7 +66,7 @@
                         <thead class="table-light text-uppercase fs-7 text-muted">
                             <tr>
                                 <th class="py-3 px-4">ID / Servicio</th>
-                                <th class="py-3 px-4">Cliente / Punto</th>
+                                <th class="py-3 px-4">Cliente</th>
                                 <th class="py-3 px-4">Fecha y Hora</th>
                                 <th class="py-3 px-4">Dirección</th>
                                 <th class="py-3 px-4">Equipos</th>
@@ -45,6 +76,14 @@
                         </thead>
                         <tbody>
                             @forelse($appointments as $app)
+                            @php
+                            $clientProfile = $app->client;
+                            $clientNameDisplay = $clientProfile?->business_name
+                            ?? $clientProfile?->user?->name
+                            ?? 'Cliente N/A';
+                            $addressDisplay = $clientProfile?->address ?? 'N/A';
+                            $cityDisplay = $clientProfile?->city ?? 'N/A';
+                            @endphp
                             <tr>
                                 <td class="py-3 px-4">
                                     <div class="fw-bold text-dark">#{{ $app->id }}</div>
@@ -53,16 +92,15 @@
                                     </span>
                                 </td>
                                 <td class="py-3 px-4">
-                                    <div class="fw-semibold text-dark">{{ $app->client?->name ?? 'Cliente' }}</div>
-                                    <div class="text-muted small">{{ $app->distributor_name }}</div>
+                                    <div class="fw-semibold text-dark">{{ $clientNameDisplay }}</div>
                                 </td>
                                 <td class="py-3 px-4 fw-semibold text-primary">
                                     <i class="bi bi-clock me-1"></i>
                                     {{ \Carbon\Carbon::parse($app->scheduled_date)->format('d/m/Y') }} - {{ $app->scheduled_time }}
                                 </td>
                                 <td class="py-3 px-4 text-secondary small">
-                                    <div><i class="bi bi-geo-alt text-danger me-1"></i> {{ $app->address }}</div>
-                                    <div class="text-muted">{{ $app->city }}</div>
+                                    <div><i class="bi bi-geo-alt text-danger me-1"></i> {{ $addressDisplay }}</div>
+                                    <div class="text-muted">{{ $cityDisplay }}</div>
                                 </td>
                                 <td class="py-3 px-4">
                                     <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-toggle="modal" data-bs-target="#itemsModal{{ $app->id }}">
@@ -144,6 +182,16 @@
                     </table>
                 </div>
             </div>
+            @if(method_exists($appointments, 'hasPages') && $appointments->hasPages())
+            <div class="card-footer bg-white py-3 px-4 border-top d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
+                <div class="text-muted small">
+                    Página {{ $appointments->currentPage() }} de {{ $appointments->lastPage() }}
+                </div>
+                <div>
+                    {{ $appointments->links() }}
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 

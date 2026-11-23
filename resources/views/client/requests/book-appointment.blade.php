@@ -1,3 +1,11 @@
+@php
+$isProviderUser = auth()->user()->isProvider();
+$selectInstallationRoute = $isProviderUser
+? route('provider.services.selectInstallation')
+: route('client.services.selectInstallation');
+$backToSelectRoute = route('client.services.select');
+$tipoServicio = request()->query('tipo', 'Auditoría');
+@endphp
 <!DOCTYPE html>
 <html lang="es">
 
@@ -152,36 +160,92 @@
     <!-- Navbar Global -->
     <x-navbar />
 
-    @php
-    $tipoServicio = request()->query('tipo', 'Auditoría');
-    @endphp
-
     <div class="container py-5">
 
         <!-- Barra superior de navegación interna y pasos -->
         <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
-            <a href="{{ route('client.services.select') }}" class="text-decoration-none text-muted fw-semibold small d-flex align-items-center">
+            <a href="{{ $backToSelectRoute }}" class="text-decoration-none text-muted fw-semibold small d-flex align-items-center">
                 <i class="bi bi-arrow-left me-2"></i> Volver a selección de citas
             </a>
             <div class="text-muted small">
                 <span class="text-dark fw-bold">Fecha y hora</span>
-                <i class="bi bi-chevron-right mx-2 text-muted" style="font-size: 0.75rem;"></i> Detalles
+                <i class="bi bi-chevron-right mx-2 text-muted" style="font-size: 0.75rem;"></i> Seleccionar Instalación
                 <i class="bi bi-chevron-right mx-2 text-muted" style="font-size: 0.75rem;"></i> Reservado
             </div>
         </div>
 
-        <div class="row g-4">
+        @if ($errors->any())
+        <div class="alert alert-danger shadow-sm border-0 rounded-4 mb-4">
+            <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>Por favor corrija los siguientes errores:</div>
+            <ul class="mb-0 small">
+                @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+        @endif
 
+        <div class="row g-4">
             <!-- COLUMNA IZQUIERDA: Calendario Real y Horas -->
             <div class="col-lg-8">
                 <div class="mb-4">
                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill fw-bold mb-2">Paso 1 de 2</span>
                     <h2 class="fw-bold text-dark">Elige la fecha y la hora</h2>
-                    <p class="text-muted small">Selecciona el día en el calendario y elige un horario disponible para tu {{ strtolower($tipoServicio) }}.</p>
+                    <p class="text-muted small">
+                        @if($isProviderUser)
+                        Selecciona el cliente, el día y el horario para agendar la {{ strtolower($tipoServicio) }} sobre una instalación existente.
+                        @else
+                        Selecciona el día en el calendario y elige un horario disponible para tu {{ strtolower($tipoServicio) }}.
+                        @endif
+                    </p>
                 </div>
 
-                <form action="{{ route('client.services.selectInstallation') }}" method="POST" id="appointmentForm">
+                <form action="{{ $selectInstallationRoute }}" method="POST" id="appointmentForm">
                     @csrf
+
+                    @if($isProviderUser)
+                    <div class="mb-4 p-3 p-md-4 rounded-4 bg-white border shadow-sm">
+                        <label for="clientSearchInput" class="form-label small fw-bold text-dark mb-1">
+                            <i class="bi bi-building-check text-primary me-1"></i> Cliente a relacionar con la instalación *
+                        </label>
+                        <p class="text-muted small mb-2">Al continuar, se filtrarán las instalaciones registradas de este cliente.</p>
+
+                        <!-- Buscador en tiempo real -->
+                        <input type="text"
+                            id="clientSearchInput"
+                            class="form-control form-control-sm rounded-3 mb-2"
+                            placeholder="Escribe nombre del cliente, NIT, ciudad o dirección..."
+                            autocomplete="off">
+
+                        <!-- Selector normalizado de clientes -->
+                        <select name="client_id" id="clientSelect" class="form-select rounded-3 @error('client_id') is-invalid @enderror" required>
+                            <option value="">-- Selecciona un cliente --</option>
+                            @foreach($clients ?? [] as $client)
+                            @php
+                            $clientName = $client->business_name ?? $client->user?->name ?? ('Cliente #' . $client->id);
+                            $nit = $client->nit ?? '';
+                            $city = $client->city ?? '';
+                            $address = $client->address ?? '';
+                            @endphp
+                            <option value="{{ $client->id }}"
+                                data-search="{{ strtolower($clientName . ' ' . $nit . ' ' . $city . ' ' . $address) }}"
+                                data-summary-name="{{ $clientName }}"
+                                data-summary-city="{{ $city }}"
+                                data-summary-address="{{ $address }}"
+                                {{ old('client_id') == $client->id ? 'selected' : '' }}>
+                                {{ $clientName }}@if($nit) — NIT: {{ $nit }}@endif @if($city) ({{ $city }})@endif
+                            </option>
+                            @endforeach
+                        </select>
+                        @error('client_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+
+                        <small class="text-muted d-block mt-1" style="font-size: 0.72rem;" id="clientSearchCount">
+                            {{ count($clients ?? []) }} clientes disponibles
+                        </small>
+                    </div>
+                    @endif
 
                     <input type="hidden" name="scheduled_date" id="selectedDateInput" required>
                     <input type="hidden" name="scheduled_time" id="selectedTimeInput" required>
@@ -207,20 +271,20 @@
                                     <!-- Botones de hora con atributo data-time para validación automática -->
                                     <div class="d-flex flex-column gap-2 mb-4" id="timeSlotsContainer">
                                         <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="07:00" onclick="selectTime(this, '07:00')">07:00 AM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="08:00" onclick="selectTime(this, '08:00')">08:00 AM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="07:00 AM" onclick="selectTime(this, '07:00 AM')">07:00 AM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="08:00 AM" onclick="selectTime(this, '08:00 AM')">08:00 AM</button></div>
                                         </div>
                                         <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="09:00" onclick="selectTime(this, '09:00')">09:00 AM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="10:00" onclick="selectTime(this, '10:00')">10:00 AM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="09:00 AM" onclick="selectTime(this, '09:00 AM')">09:00 AM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="10:00 AM" onclick="selectTime(this, '10:00 AM')">10:00 AM</button></div>
                                         </div>
                                         <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="11:00" onclick="selectTime(this, '11:00')">11:00 AM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="14:00" onclick="selectTime(this, '14:00')">02:00 PM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="11:00 AM" onclick="selectTime(this, '11:00 AM')">11:00 AM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="02:00 PM" onclick="selectTime(this, '02:00 PM')">02:00 PM</button></div>
                                         </div>
                                         <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="15:00" onclick="selectTime(this, '15:00')">03:00 PM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="16:00" onclick="selectTime(this, '16:00')">04:00 PM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="03:00 PM" onclick="selectTime(this, '03:00 PM')">03:00 PM</button></div>
+                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="04:00 PM" onclick="selectTime(this, '04:00 PM')">04:00 PM</button></div>
                                         </div>
                                     </div>
 
@@ -261,10 +325,18 @@
                         <span class="fw-bold text-dark fs-5">{{ $tipoServicio }}</span>
                     </div>
 
+                    @if($isProviderUser)
                     <div class="mb-3">
-                        <span class="text-uppercase text-muted fs-8 fw-bold d-block mb-1">Modalidad</span>
-                        <div class="d-flex align-items-center text-secondary small">
-                            <i class="bi bi-geo-alt text-danger me-2"></i> Presencial en punto principal
+                        <span class="text-uppercase text-muted fs-8 fw-bold d-block mb-1">Cliente Seleccionado</span>
+                        <div id="summaryClientName" class="fw-semibold text-dark small">Sin seleccionar</div>
+                        <div id="summaryClientLocation" class="text-muted small"></div>
+                    </div>
+                    @endif
+
+                    <div class="mb-3">
+                        <span class="text-uppercase text-muted fs-8 fw-bold d-block mb-1">Horario Elegido</span>
+                        <div id="summarySchedule" class="text-secondary small">
+                            <i class="bi bi-calendar-check text-primary me-1"></i> <span id="summaryTimeText">Por definir</span>
                         </div>
                     </div>
 
@@ -276,7 +348,7 @@
                     </div>
 
                     <div class="alert alert-light border rounded-3 p-3 small text-muted mb-0">
-                        <i class="bi bi-shield-check text-success me-1"></i> Al confirmar, el espacio quedará registrado en el sistema para su validación técnica.
+                        <i class="bi bi-shield-check text-success me-1"></i> En el siguiente paso elegirás la instalación del cliente para vincular los equipos.
                     </div>
                 </div>
             </div>
@@ -288,11 +360,35 @@
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var calendarEl = document.getElementById('calendar');
-            let todayStr = new Date().toISOString().split('T')[0];
+        function parseTimeTo24h(timeStr) {
+            // Soporta formatos como "07:00 AM", "02:00 PM" o "14:00"
+            const match = (timeStr || '').trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+            if (!match) return {
+                hour: 0,
+                minute: 0
+            };
 
-            var calendar = new FullCalendar.Calendar(calendarEl, {
+            let hour = parseInt(match[1], 10);
+            const minute = parseInt(match[2], 10);
+            const period = (match[3] || '').toUpperCase();
+
+            if (period === 'PM' && hour < 12) hour += 12;
+            if (period === 'AM' && hour === 12) hour = 0;
+
+            return {
+                hour,
+                minute
+            };
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            const now = new Date();
+            const todayStr = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0');
+
+            const calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
                 locale: 'es',
                 headerToolbar: {
@@ -302,7 +398,7 @@
                 },
                 selectable: true,
                 dateClick: function(info) {
-                    let selectedDate = info.dateStr;
+                    const selectedDate = info.dateStr;
 
                     if (selectedDate < todayStr) {
                         alert('No puedes agendar citas en fechas pasadas.');
@@ -311,13 +407,13 @@
 
                     document.getElementById('selectedDateInput').value = selectedDate;
 
-                    let options = {
+                    const options = {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
                         weekday: 'long'
                     };
-                    let formattedDate = new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', options);
+                    const formattedDate = new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', options);
                     document.getElementById('displaySelectedDate').innerText = formattedDate;
 
                     document.querySelectorAll('.fc-daygrid-day').forEach(day => {
@@ -325,8 +421,8 @@
                     });
                     info.dayEl.classList.add('selected-date');
 
-                    // Validar horas disponibles al cambiar de fecha
                     validateAvailableTimes(selectedDate);
+                    updateSummaryTime();
                 }
             });
 
@@ -334,35 +430,83 @@
 
             // Inicializar con el día de hoy
             document.getElementById('selectedDateInput').value = todayStr;
-            let options = {
+            const options = {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
                 weekday: 'long'
             };
-            let formattedToday = new Date(todayStr + 'T00:00:00').toLocaleDateString('es-ES', options);
+            const formattedToday = new Date(todayStr + 'T00:00:00').toLocaleDateString('es-ES', options);
             document.getElementById('displaySelectedDate').innerText = formattedToday;
 
             validateAvailableTimes(todayStr);
+            updateSummaryTime();
+
+            // Filtro y resumen de clientes (Proveedor)
+            const searchInput = document.getElementById('clientSearchInput');
+            const selectEl = document.getElementById('clientSelect');
+            const countText = document.getElementById('clientSearchCount');
+            const summaryNameEl = document.getElementById('summaryClientName');
+            const summaryLocEl = document.getElementById('summaryClientLocation');
+
+            function updateClientSummary() {
+                if (!selectEl || !summaryNameEl) return;
+                const opt = selectEl.options[selectEl.selectedIndex];
+                if (!opt || !opt.value) {
+                    summaryNameEl.textContent = 'Sin seleccionar';
+                    if (summaryLocEl) summaryLocEl.textContent = '';
+                    return;
+                }
+                summaryNameEl.textContent = opt.dataset.summaryName || opt.text;
+                const locParts = [opt.dataset.summaryAddress, opt.dataset.summaryCity].filter(Boolean);
+                if (summaryLocEl) summaryLocEl.textContent = locParts.join(' — ');
+            }
+
+            if (searchInput && selectEl) {
+                const allOptions = Array.from(selectEl.options).slice(1);
+
+                searchInput.addEventListener('input', function() {
+                    const term = this.value.trim().toLowerCase();
+                    let visibleCount = 0;
+
+                    allOptions.forEach(opt => {
+                        const haystack = opt.getAttribute('data-search') || '';
+                        const matches = !term || haystack.includes(term);
+                        opt.hidden = !matches;
+                        if (matches) visibleCount++;
+                    });
+
+                    if (countText) {
+                        countText.textContent = term ?
+                            `${visibleCount} coincidencia(s) encontrada(s)` :
+                            `${allOptions.length} clientes disponibles`;
+                    }
+                });
+
+                selectEl.addEventListener('change', updateClientSummary);
+                updateClientSummary();
+            }
         });
 
-        // Función para bloquear o desbloquear horas según la hora actual si es el día de hoy
         function validateAvailableTimes(selectedDate) {
-            let todayStr = new Date().toISOString().split('T')[0];
-            let now = new Date();
-            let currentHour = now.getHours();
-            let currentMinutes = now.getMinutes();
+            const now = new Date();
+            const todayStr = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0');
+            const currentHour = now.getHours();
+            const currentMinutes = now.getMinutes();
 
-            let timeButtons = document.querySelectorAll('.time-slot');
+            const timeButtons = document.querySelectorAll('.time-slot');
             let firstAvailableBtn = null;
 
             timeButtons.forEach(btn => {
-                let timeStr = btn.getAttribute('data-time'); // Ej: "14:00"
-                let [btnHour, btnMinute] = timeStr.split(':').map(Number);
+                const timeStr = btn.getAttribute('data-time');
+                const {
+                    hour: btnHour,
+                    minute: btnMinute
+                } = parseTimeTo24h(timeStr);
 
                 let isPast = false;
-
-                // Si la fecha seleccionada es hoy, comparamos la hora del botón con la hora actual
                 if (selectedDate === todayStr) {
                     if (btnHour < currentHour || (btnHour === currentHour && btnMinute <= currentMinutes)) {
                         isPast = true;
@@ -375,20 +519,34 @@
                 } else {
                     btn.disabled = false;
                     if (!firstAvailableBtn) {
-                        firstAvailableBtn = btn; // Guardamos el primer horario disponible para seleccionarlo por defecto
+                        firstAvailableBtn = btn;
                     }
                 }
             });
 
-            // Seleccionar automáticamente el primer horario disponible si el actual quedó bloqueado
-            let activeBtn = document.querySelector('.time-slot.active');
+            const activeBtn = document.querySelector('.time-slot.active');
             if (!activeBtn || activeBtn.disabled) {
                 if (firstAvailableBtn) {
                     selectTime(firstAvailableBtn, firstAvailableBtn.getAttribute('data-time'));
                 } else {
-                    // Si ya pasaron todas las horas del día de hoy
                     document.getElementById('selectedTimeInput').value = "";
+                    updateSummaryTime();
                 }
+            }
+        }
+
+        function updateSummaryTime() {
+            const timeEl = document.getElementById('summaryTimeText');
+            const dateVal = document.getElementById('selectedDateInput')?.value || '';
+            const timeVal = document.getElementById('selectedTimeInput')?.value || '';
+            if (!timeEl) return;
+
+            if (dateVal && timeVal) {
+                timeEl.textContent = `${dateVal} a las ${timeVal}`;
+            } else if (dateVal) {
+                timeEl.textContent = `${dateVal} (Sin hora disponible)`;
+            } else {
+                timeEl.textContent = 'Por definir';
             }
         }
 
@@ -397,11 +555,19 @@
             document.querySelectorAll('.time-slot').forEach(el => el.classList.remove('active'));
             button.classList.add('active');
             document.getElementById('selectedTimeInput').value = timeStr;
+            updateSummaryTime();
         }
 
-        // Validación extra al enviar el formulario por seguridad
         document.getElementById('appointmentForm').addEventListener('submit', function(e) {
-            let timeVal = document.getElementById('selectedTimeInput').value;
+            const clientSelect = document.getElementById('clientSelect');
+            if (clientSelect && !clientSelect.value) {
+                e.preventDefault();
+                alert('Por favor, selecciona un cliente para relacionar con la instalación.');
+                clientSelect.focus();
+                return;
+            }
+
+            const timeVal = document.getElementById('selectedTimeInput').value;
             if (!timeVal) {
                 e.preventDefault();
                 alert('Por favor, selecciona un horario válido disponible.');
