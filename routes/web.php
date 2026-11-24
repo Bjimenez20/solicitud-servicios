@@ -73,7 +73,7 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/carrito/quitar/{productId}', [ProviderRequestController::class, 'removeFromCart'])->name('cart.remove');
         Route::post('/solicitudes/confirmar', [ProviderRequestController::class, 'confirmOrder'])->name('requests.confirm');
         Route::patch('/solicitudes/{serviceRequest}/estado', [ProviderRequestController::class, 'updateStatus'])->name('requests.updateStatus');
-
+        Route::get('/mis-solicitudes', [ProviderRequestController::class, 'myRequests'])->name('requests.mine');
         // Agendamientos
         Route::get('/agendamientos', [ProviderRequestController::class, 'appointmentsIndex'])->name('appointments.index');
         Route::get('/agendamientos/seleccionar-tipo', [ProviderRequestController::class, 'selectService'])->name('services.select');

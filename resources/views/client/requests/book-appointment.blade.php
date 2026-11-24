@@ -192,18 +192,13 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill fw-bold mb-2">Paso 1 de 2</span>
                     <h2 class="fw-bold text-dark">Elige la fecha y la hora</h2>
                     <p class="text-muted small">
-                        @if($isProviderUser)
                         Selecciona el cliente, el día y el horario para agendar la {{ strtolower($tipoServicio) }} sobre una instalación existente.
-                        @else
-                        Selecciona el día en el calendario y elige un horario disponible para tu {{ strtolower($tipoServicio) }}.
-                        @endif
                     </p>
                 </div>
 
                 <form action="{{ $selectInstallationRoute }}" method="POST" id="appointmentForm">
                     @csrf
 
-                    @if($isProviderUser)
                     <div class="mb-4 p-3 p-md-4 rounded-4 bg-white border shadow-sm">
                         <label for="clientSearchInput" class="form-label small fw-bold text-dark mb-1">
                             <i class="bi bi-building-check text-primary me-1"></i> Cliente a relacionar con la instalación *
@@ -222,7 +217,7 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
                             <option value="">-- Selecciona un cliente --</option>
                             @foreach($clients ?? [] as $client)
                             @php
-                            $clientName = $client->business_name ?? $client->user?->name ?? ('Cliente #' . $client->id);
+                            $clientName = $client->business_name ?? ('Cliente #' . $client->id);
                             $nit = $client->nit ?? '';
                             $city = $client->city ?? '';
                             $address = $client->address ?? '';
@@ -245,7 +240,6 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
                             {{ count($clients ?? []) }} clientes disponibles
                         </small>
                     </div>
-                    @endif
 
                     <input type="hidden" name="scheduled_date" id="selectedDateInput" required>
                     <input type="hidden" name="scheduled_time" id="selectedTimeInput" required>
@@ -325,13 +319,11 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
                         <span class="fw-bold text-dark fs-5">{{ $tipoServicio }}</span>
                     </div>
 
-                    @if($isProviderUser)
                     <div class="mb-3">
                         <span class="text-uppercase text-muted fs-8 fw-bold d-block mb-1">Cliente Seleccionado</span>
                         <div id="summaryClientName" class="fw-semibold text-dark small">Sin seleccionar</div>
                         <div id="summaryClientLocation" class="text-muted small"></div>
                     </div>
-                    @endif
 
                     <div class="mb-3">
                         <span class="text-uppercase text-muted fs-8 fw-bold d-block mb-1">Horario Elegido</span>
@@ -361,7 +353,6 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
 
     <script>
         function parseTimeTo24h(timeStr) {
-            // Soporta formatos como "07:00 AM", "02:00 PM" o "14:00"
             const match = (timeStr || '').trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
             if (!match) return {
                 hour: 0,
@@ -428,7 +419,6 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
 
             calendar.render();
 
-            // Inicializar con el día de hoy
             document.getElementById('selectedDateInput').value = todayStr;
             const options = {
                 year: 'numeric',
@@ -442,7 +432,6 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
             validateAvailableTimes(todayStr);
             updateSummaryTime();
 
-            // Filtro y resumen de clientes (Proveedor)
             const searchInput = document.getElementById('clientSearchInput');
             const selectEl = document.getElementById('clientSelect');
             const countText = document.getElementById('clientSearchCount');

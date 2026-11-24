@@ -28,7 +28,11 @@
                     <h1 class="display-4 fw-bold mb-3">Overall TrackField</h1>
                     <p class="lead text-light mb-4">Elige el servicio a solicitar</p>
                     @php
-                    $routePrefix = auth()->user()->isProvider() ? 'provider.' : 'client.';
+                    $isProvider = auth()->user()->isProvider();
+                    $routePrefix = $isProvider ? 'provider.' : 'client.';
+                    $appointmentButtonText = $isProvider
+                    ? 'Agendar Mantenimiento o Auditoría'
+                    : 'Agendar Mantenimiento';
                     @endphp
 
                     <div class="d-flex flex-wrap gap-3">
@@ -36,7 +40,7 @@
                             Agendar Instalación
                         </a>
                         <a href="{{ route($routePrefix . 'services.select') }}" class="btn btn-light text-dark fw-bold px-4 py-3 rounded-3">
-                            Agendar Mantenimiento o Auditoría
+                            {{ $appointmentButtonText }}
                         </a>
                     </div>
                 </div>

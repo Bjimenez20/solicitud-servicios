@@ -4,9 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\Product;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
-use Throwable;
 
 class ProductSeeder extends Seeder
 {
@@ -14,45 +13,64 @@ class ProductSeeder extends Seeder
     {
         $products = [
             [
-                'name' => 'DISPENSADOR JUMBO ACERO CHAPA PAN',
-                'filename' => 'dispensador_jumbo.webp',
-                'url' => 'https://http2.mlstatic.com/D_NQ_NP_923699-MLA116765554383_082026-O.webp',
-                'description' => 'Instalación y mantenimiento de unidades residenciales.',
+                'name'        => 'DISPENSADOR AZUR MINI 2',
+                'filename'    => 'disp. azur mini 2.JPG',
+                'description' => 'Dispensador compacto ideal para baños y áreas de tráfico moderado.',
             ],
             [
-                'name' => 'DISPENSADOR TOA CENTER PULL',
-                'filename' => 'dispensador_toa_center_pull.webp',
-                'url' => 'https://media.falabella.com/sodimacCO/553728_2/w=1160',
-                'description' => 'Instalación y mantenimiento de unidades residenciales.',
+                'name'        => 'DISPENSADOR CENTER PULL',
+                'filename'    => 'dispensador CENTER PULL.png',
+                'description' => 'Dispensador de extracción central para toallas de papel en rollo.',
             ],
             [
-                'name' => 'DISPENSADOR LIMPION PARED',
-                'filename' => 'dispensador_limpion_pared.jpg',
-                'url' => 'https://torkco.vteximg.com.br/arquivos/ids/156235/81060_01.jpg?v=639126621756470000',
-                'description' => 'Instalación y mantenimiento de unidades residenciales.',
+                'name'        => 'DISPENSADOR HIGIÉNICO ACERO CHAPA',
+                'filename'    => 'dispensador hig. ACERO CHAPA.png',
+                'description' => 'Dispensador de papel higiénico fabricado en acero inoxidable con cerradura de seguridad.',
+            ],
+            [
+                'name'        => 'DISPENSADOR LIMPIÓN PARED',
+                'filename'    => 'dispensador LIMPION PARED.png',
+                'description' => 'Dispensador de pared para rollos de limpión industrial de alto rendimiento.',
+            ],
+            [
+                'name'        => 'DISPENSADOR TOALLAS M-FOLD PEQUEÑO',
+                'filename'    => 'dispensador toallas M- FOLF PEQ.png',
+                'description' => 'Dispensador compacto para toallas interfoliadas tipo M-Fold.',
+            ],
+            [
+                'name'        => 'DISPENSADOR TOALLAS M-FOLD GRANDE',
+                'filename'    => 'dispensador toallas M-FOLD GDE.png',
+                'description' => 'Dispensador de alta capacidad para toallas interfoliadas tipo M-Fold.',
+            ],
+            [
+                'name'        => 'DISPENSADOR TOALLAS PRECORTE DCO',
+                'filename'    => 'dispensador toallas PRECORTE DCO.png',
+                'description' => 'Dispensador de toallas en rollo con sistema de precorte controlado.',
             ],
         ];
+
+        // Ruta donde tienes la carpeta original con las imágenes (ajusta si está en public/products)
+        $sourceDir = database_path('seeders/products');
 
         Storage::disk('public')->makeDirectory('products');
 
         foreach ($products as $item) {
+            $sourceFile = $sourceDir . DIRECTORY_SEPARATOR . $item['filename'];
             $storagePath = 'products/' . $item['filename'];
             $savedImage = null;
 
-            try {
-                $response = Http::timeout(10)->get($item['url']);
-                if ($response->successful() && $response->body() !== '') {
-                    Storage::disk('public')->put($storagePath, $response->body());
-                    $savedImage = $storagePath;
-                }
-            } catch (Throwable $e) {
-                $savedImage = null;
+            if (File::exists($sourceFile)) {
+                Storage::disk('public')->put($storagePath, File::get($sourceFile));
+                $savedImage = $storagePath;
+            } elseif (Storage::disk('public')->exists($storagePath)) {
+                // Si ya están directamente en storage/app/public/products
+                $savedImage = $storagePath;
             }
 
             Product::updateOrCreate(
                 ['name' => $item['name']],
                 [
-                    'image' => $savedImage,
+                    'image'       => $savedImage,
                     'description' => $item['description'],
                 ]
             );

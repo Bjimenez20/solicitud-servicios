@@ -10,7 +10,6 @@ class Client extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
         'business_name',
         'nit',
         'city',
@@ -18,12 +17,6 @@ class Client extends Model
         'phone',
         'email',
     ];
-
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
-
     public function providers()
     {
         return $this->belongsToMany(Provider::class, 'client_provider')->withTimestamps();

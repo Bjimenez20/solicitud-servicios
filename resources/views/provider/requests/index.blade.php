@@ -73,10 +73,9 @@
     }
 </style>
 
-
 <body class="bg-light">
 
-    <!-- Tu Navbar Global Uniforme -->
+    <!-- Navbar Global Uniforme -->
     <x-navbar />
 
     <!-- Contenido Principal Estilo E-commerce -->
@@ -144,13 +143,18 @@
 
                             $clientProfile = $req->client;
                             $clientDisplayName = $clientProfile?->business_name
-                            ?? $clientProfile?->user?->name
                             ?? 'Cliente N/A';
                             $clientNitDisplay = $clientProfile?->nit ?? 'N/A';
                             $addressDisplay = $clientProfile?->address ?? 'N/A';
                             $cityDisplay = $clientProfile?->city ?? 'N/A';
-                            $responsibleDisplay = $clientProfile?->user?->name ?? $clientDisplayName;
+                            $responsibleDisplay = $clientProfile?->contact_name ?? $clientDisplayName;
                             $phoneDisplay = $clientProfile?->phone ?? 'N/A';
+
+                            $providerProfile = $req->provider;
+                            $providerDisplayName = $providerProfile?->business_name
+                            ?? $providerProfile?->name
+                            ?? 'No registrado';
+                            $providerNitDisplay = $providerProfile?->nit ?? null;
                             @endphp
                             <tr>
                                 <!-- Cliente -->
@@ -191,9 +195,11 @@
                                         <i class="bi bi-calendar-check me-1"></i> {{ \Carbon\Carbon::parse($req->scheduled_date)->format('d/m/Y') }}
                                     </div>
                                     <div class="small text-muted">{{ $req->scheduled_time }}</div>
+                                    @if($req->installer?->name)
                                     <div class="small text-primary fw-semibold mt-1">
                                         <i class="bi bi-person-badge me-1"></i> {{ $req->installer->name }}
                                     </div>
+                                    @endif
                                     @else
                                     <span class="badge bg-secondary-subtle text-secondary">Sin agendar</span>
                                     @endif
@@ -220,7 +226,7 @@
                                     </div>
                                 </td>
 
-                                <!-- Botón Ver Detalle (Modal que incluye la lista de productos y botones de confirmación) -->
+                                <!-- Botón Ver Detalle -->
                                 <td class="py-3 px-4 text-center">
                                     <button type="button" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#detalleModal{{ $req->id }}">
                                         <i class="bi bi-eye me-1"></i> Ver Detalle ({{ $req->items->sum('quantity') }})
@@ -253,14 +259,34 @@
                                                         </div>
                                                     </div>
 
-                                                    <div class="row mb-3 bg-light p-3 rounded-3 small">
-                                                        <div class="col-md-6">
-                                                            <strong>Dirección:</strong> {{ $addressDisplay }}<br>
-                                                            <strong>Ciudad:</strong> {{ $cityDisplay }}
+                                                    <!-- Proveedor asociado (desde tabla providers) -->
+                                                    <div class="row mb-3 bg-light p-3 rounded-3 small border-start border-4 border-primary">
+                                                        <div class="col-12 fw-bold text-dark mb-1">
+                                                            <i class="bi bi-building-check text-primary me-1"></i> Proveedor / Origen
                                                         </div>
                                                         <div class="col-md-6">
-                                                            <strong>Responsable:</strong> {{ $responsibleDisplay }}<br>
-                                                            <strong>Teléfono:</strong> {{ $phoneDisplay }}
+                                                            <strong>Proveedor:</strong> {{ $providerDisplayName }}<br>
+                                                            @if($providerNitDisplay)
+                                                            <strong>NIT Proveedor:</strong> {{ $providerNitDisplay }}<br>
+                                                            @endif
+                                                            <strong>Fecha de creación:</strong> {{ $req->created_at ? $req->created_at->format('d/m/Y h:i A') : 'N/A' }}
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Datos del cliente / punto -->
+                                                    <div class="row mb-3 bg-light p-3 rounded-3 small border-start border-4 border-primary">
+                                                        <div class="col-12 fw-bold text-dark mb-1">
+                                                            <i class="bi bi-person-check-fill text-primary me-1"></i> Información de instalación
+                                                        </div>
+                                                        <div class="row mb-3 bg-light p-3 rounded-3 small">
+                                                            <div class="col-md-6">
+                                                                <strong>Dirección:</strong> {{ $addressDisplay }}<br>
+                                                                <strong>Ciudad:</strong> {{ $cityDisplay }}
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <strong>Responsable:</strong> {{ $responsibleDisplay }}<br>
+                                                                <strong>Teléfono:</strong> {{ $phoneDisplay }}
+                                                            </div>
                                                         </div>
                                                     </div>
 

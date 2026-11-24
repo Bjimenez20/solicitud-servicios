@@ -75,17 +75,17 @@
                     <span class="badge bg-primary-subtle text-primary rounded-circle p-1 d-inline-flex align-items-center justify-content-center" style="width: 28px; height: 28px;">
                         <i class="bi bi-shield-check"></i>
                     </span>
-                    <span class="small text-dark d-none d-sm-inline">Proveedor - {{ auth()->user()->name }}</span>
+                    <span class="small text-dark d-none d-sm-inline">{{ auth()->user()->name }}</span>
                     @elseif(auth()->user()->role === 'bodega')
                     <span class="badge bg-warning-subtle text-warning-emphasis rounded-circle p-1 d-inline-flex align-items-center justify-content-center" style="width: 28px; height: 28px;">
                         <i class="bi bi-box-seam-fill"></i>
                     </span>
-                    <span class="small text-dark d-none d-sm-inline">Backoffice - {{ auth()->user()->name }}</span>
+                    <span class="small text-dark d-none d-sm-inline">{{ auth()->user()->name }}</span>
                     @else
                     <span class="badge bg-success-subtle text-success rounded-circle p-1 d-inline-flex align-items-center justify-content-center" style="width: 28px; height: 28px;">
                         <i class="bi bi-building"></i>
                     </span>
-                    <span class="small text-dark d-none d-sm-inline">Cliente - {{ auth()->user()->name }}</span>
+                    <span class="small text-dark d-none d-sm-inline">{{ auth()->user()->name }}</span>
                     @endif
                     @else
                     <i class="bi bi-person-circle"></i>
@@ -95,7 +95,7 @@
                 <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
                     @auth
                     <!-- Cabecera del dropdown con nombre y rol -->
-                    <li class="px-3 py-2 border-bottom">
+                    <!-- <li class="px-3 py-2 border-bottom">
                         <div class="fw-bold text-dark small">{{ auth()->user()->name }}</div>
                         <div class="text-muted" style="font-size: 0.75rem;">
                             @if(auth()->user()->isProvider())
@@ -106,7 +106,7 @@
                             <i class="bi bi-building text-success me-1"></i> Rol: Cliente
                             @endif
                         </div>
-                    </li>
+                    </li> -->
 
                     @if(auth()->user()->role !== 'bodega')
                     <!-- Opción extra para móviles donde el botón superior se oculta -->
@@ -120,6 +120,11 @@
                     <li>
                         <a class="dropdown-item" href="{{ route('provider.requests.hub') }}">
                             <i class="bi bi-grid-fill me-2 text-primary"></i> Panel de Gestión
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ route('provider.requests.mine') }}">
+                            <i class="bi bi-folder2-open me-2 text-success"></i> Mis Solicitudes
                         </a>
                     </li>
                     @else

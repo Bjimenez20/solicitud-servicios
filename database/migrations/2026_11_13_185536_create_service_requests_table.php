@@ -51,6 +51,7 @@ return new class extends Migration
                 'confirmada',
                 'despachado',
                 'instalado',
+                'Agendado',
                 'realizado',
                 'cancelada',
             ])->default('pendiente');

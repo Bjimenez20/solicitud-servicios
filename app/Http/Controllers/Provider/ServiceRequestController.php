@@ -7,9 +7,9 @@ use App\Models\Client;
 use App\Models\Product;
 use App\Models\Provider;
 use App\Models\ServiceRequest;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
 
 class ServiceRequestController extends Controller
 {
@@ -34,7 +34,7 @@ class ServiceRequestController extends Controller
     public function index()
     {
         $requests = ServiceRequest::whereNotIn('type', ['mantenimiento', 'auditoria'])
-            ->with(['client.user', 'provider.user', 'installer', 'items.product'])
+            ->with(['client', 'provider.user', 'installer', 'items.product', 'creator'])
             ->latest()
             ->paginate(5)
             ->withQueryString();
@@ -45,7 +45,7 @@ class ServiceRequestController extends Controller
     public function appointmentsIndex()
     {
         $appointments = ServiceRequest::whereIn('type', ['mantenimiento', 'auditoria'])
-            ->with(['client.user', 'provider.user', 'installer', 'items.product'])
+            ->with(['client', 'provider.user', 'installer', 'items.product'])
             ->latest()
             ->paginate(6)
             ->withQueryString();
@@ -63,6 +63,7 @@ class ServiceRequestController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
+        $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
         $provider = $this->currentProvider();
 
         ServiceRequest::create([
@@ -74,7 +75,7 @@ class ServiceRequestController extends Controller
             'scheduled_time'     => $data['scheduled_time'],
             'message_subject'    => 'Agendamiento de ' . $data['type'],
             'notes'              => $data['notes'] ?? null,
-            'status'             => 'pendiente',
+            'status'             => 'confirmada',
         ]);
 
         return redirect()->route('provider.requests.index')
@@ -86,7 +87,7 @@ class ServiceRequestController extends Controller
         $provider = $this->currentProvider();
 
         $request->validate([
-            'status'         => 'required|in:pendiente,confirmada,cancelada,despachado,instalado,realizado',
+            'status'         => 'required|in:pendiente,confirmada,cancelada,despachado,instalado,Agendado,realizado',
             'provider_notes' => 'nullable|string',
         ]);
 
@@ -101,19 +102,29 @@ class ServiceRequestController extends Controller
 
     public function create()
     {
-        $clients = Client::with('user')->orderBy('business_name')->get();
-        $provider = Provider::where('user_id', auth()->id())->first();
-
-        return view('client.requests.create', compact('clients', 'provider'));
+        $provider = $this->currentProvider();
+        $providers = Provider::orderBy('business_name')->get();
+        return view('client.requests.create', compact('provider', 'providers'));
     }
 
     public function storeStepOne(Request $request)
     {
         $validated = $request->validate([
-            'client_id'       => 'required|exists:clients,id',
-            'type'            => 'nullable|string|max:50',
-            'message_subject' => 'nullable|string|max:255',
-            'notes'           => 'nullable|string',
+            'distributor_name'  => 'nullable|string|max:255',
+            'distributor_nit'   => 'nullable|string|max:50',
+            'associated_client' => 'required|string|max:255',
+            'client_nit'        => 'required|string|max:50',
+            'city'              => 'required|string|max:100',
+            'executive'         => 'nullable|string|max:100',
+            'type'              => 'required|string|max:50',
+            'segment'           => 'nullable|string|max:100',
+            'negotiation_date'  => 'nullable|date',
+            'address'           => 'required|string|max:255',
+            'responsible_name'  => 'required|string|max:255',
+            'responsible_phone' => 'required|string|max:50',
+            'responsible_email' => 'required|email|max:255',
+            'message_subject'   => 'required|string|max:255',
+            'notes'             => 'nullable|string',
         ]);
 
         $validated['type'] = $this->normalizeType($validated['type'] ?? 'instalacion');
@@ -122,14 +133,35 @@ class ServiceRequestController extends Controller
         return redirect()->route('provider.requests.catalog');
     }
 
-    public function catalog()
+    public function myRequests()
+    {
+        $requests = ServiceRequest::where('created_by_user_id', auth()->id())
+            ->whereNotIn('type', ['mantenimiento', 'auditoria'])
+            ->with(['client', 'provider', 'installer', 'items.product'])
+            ->latest()
+            ->paginate(6)
+            ->withQueryString();
+
+        return view('provider.requests.mine', compact('requests'));
+    }
+
+    public function catalog(Request $request)
     {
         if (!session()->has('service_request_data')) {
-            return redirect()->route('provider.requests.create')
+            return redirect()->route('provider.requests.create') // o client.requests.create
                 ->with('error', 'Por favor complete primero los datos de la solicitud.');
         }
 
-        $products = Product::all();
+        $query = Product::query();
+
+        if ($search = trim((string) $request->query('q', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $products = $query->orderBy('name')->paginate(6)->withQueryString();
         $cart = session()->get('service_request_cart', []);
 
         return view('client.requests.catalog', compact('products', 'cart'));
@@ -184,12 +216,23 @@ class ServiceRequestController extends Controller
 
         $provider = $this->currentProvider();
 
+        $client = Client::updateOrCreate(
+            ['nit' => $data['client_nit']],
+            [
+                'business_name' => $data['associated_client'],
+                'city'          => $data['city'],
+                'address'       => $data['address'],
+                'phone'         => $data['responsible_phone'],
+                'email'         => $data['responsible_email'],
+            ]
+        );
+
         $serviceRequest = ServiceRequest::create([
             'created_by_user_id' => auth()->id(),
-            'client_id'          => $data['client_id'],
+            'client_id'          => $client->id,
             'provider_id'        => $provider->id,
             'type'               => $this->normalizeType($data['type'] ?? 'instalacion'),
-            'status'             => 'pendiente',
+            'status'             => 'confirmada',
             'message_subject'    => $data['message_subject'] ?? 'Solicitud creada por Proveedor',
             'notes'              => $data['notes'] ?? null,
         ]);
@@ -232,8 +275,7 @@ class ServiceRequestController extends Controller
         ]);
 
         $query = ServiceRequest::where('status', 'instalado')
-            ->where('status', 'instalado')
-            ->with(['client.user', 'provider', 'items.product'])
+            ->with(['client', 'provider.user', 'items.product'])
             ->latest();
 
         if (!empty($data['client_id'])) {

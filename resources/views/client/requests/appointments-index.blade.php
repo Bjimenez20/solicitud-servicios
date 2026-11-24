@@ -87,6 +87,10 @@
                                     <span class="badge bg-success-subtle text-success border px-3 py-2 rounded-pill fw-bold">
                                         <i class="bi bi-check-circle-fill me-1"></i> Realizado
                                     </span>
+                                    @elseif($app->status === 'Agendado')
+                                    <span class="badge bg-info-subtle text-info border px-3 py-2 rounded-pill fw-bold">
+                                        <i class="bi bi-calendar-event me-1"></i> Agendado
+                                    </span>
                                     @else
                                     <span class="badge bg-danger-subtle text-danger border px-3 py-2 rounded-pill fw-bold">
                                         {{ ucfirst($app->status) }}
@@ -105,6 +109,8 @@
                                     </form>
                                     @elseif($app->status === 'realizado')
                                     <span class="text-success small fw-semibold"><i class="bi bi-shield-check me-1"></i> Servicio completado</span>
+                                    @elseif($app->status === 'Agendado')
+                                    <span class="text-info small fst-italic"><i class="bi bi-calendar-event me-1"></i> Servicio agendado</span>
                                     @else
                                     <span class="text-danger small fst-italic">Servicio cancelado</span>
                                     @endif

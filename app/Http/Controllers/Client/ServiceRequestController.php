@@ -5,27 +5,14 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Product;
+use App\Models\Provider;
 use App\Models\ServiceRequest;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
-use App\Models\Provider;
 
 class ServiceRequestController extends Controller
 {
-    private function currentClient(): Client
-    {
-        $user = auth()->user();
-
-        return Client::firstOrCreate(
-            ['user_id' => $user->id],
-            [
-                'business_name' => $user->name,
-                'email'         => $user->email,
-            ]
-        );
-    }
-
     private function normalizeType(string $type): string
     {
         return Str::of($type)->ascii()->lower()->value();
@@ -33,15 +20,9 @@ class ServiceRequestController extends Controller
 
     public function index()
     {
-        $client = $this->currentClient();
-        $userId = auth()->id();
-
-        $requests = ServiceRequest::where(function ($query) use ($client, $userId) {
-            $query->where('created_by_user_id', $userId)
-                ->orWhere('client_id', $client->id);
-        })
+        $requests = ServiceRequest::where('created_by_user_id', auth()->id())
             ->whereNotIn('type', ['mantenimiento', 'auditoria'])
-            ->with(['provider', 'installer', 'items.product'])
+            ->with(['client', 'provider', 'installer', 'items.product'])
             ->latest()
             ->paginate(6)
             ->withQueryString();
@@ -51,15 +32,9 @@ class ServiceRequestController extends Controller
 
     public function appointmentsIndex()
     {
-        $client = $this->currentClient();
-        $userId = auth()->id();
-
-        $appointments = ServiceRequest::where(function ($query) use ($client, $userId) {
-            $query->where('created_by_user_id', $userId)
-                ->orWhere('client_id', $client->id);
-        })
+        $appointments = ServiceRequest::where('created_by_user_id', auth()->id())
             ->whereIn('type', ['mantenimiento', 'auditoria'])
-            ->with(['provider', 'installer', 'items.product'])
+            ->with(['client', 'provider', 'installer', 'items.product'])
             ->latest()
             ->paginate(6)
             ->withQueryString();
@@ -69,10 +44,11 @@ class ServiceRequestController extends Controller
 
     public function create()
     {
-        $providers = Provider::with('user')->orderBy('business_name')->get();
-        $client = Client::where('user_id', auth()->id())->first();
+        $currentUser = auth()->user();
+        $provider = Provider::where('user_id', $currentUser->id)->first();
+        $providers = Provider::orderBy('business_name')->get();
 
-        return view('client.requests.create', compact('providers', 'client'));
+        return view('client.requests.create', compact('provider', 'providers'));
     }
 
     public function selectService()
@@ -82,47 +58,57 @@ class ServiceRequestController extends Controller
 
     public function bookAppointment(Request $request)
     {
-        $type = $request->query('tipo', 'Auditoría');
+        $type = $request->query('tipo', 'Mantenimiento');
+        $clients = Client::orderBy('business_name')->get();
 
-        return view('client.requests.book-appointment', compact('type'));
+        return view('client.requests.book-appointment', compact('type', 'clients'));
     }
 
     public function storeStepOne(Request $request)
     {
         $data = $request->validate([
-            'provider_id'       => 'nullable|exists:providers,id',
+            'provider_id'       => 'required|exists:providers,id',
             'distributor_name'  => 'nullable|string|max:255',
             'distributor_nit'   => 'nullable|string|max:50',
-            'associated_client' => 'nullable|string|max:255',
-            'client_nit'        => 'nullable|string|max:50',
-            'city'              => 'nullable|string|max:100',
+            'associated_client' => 'required|string|max:255',
+            'client_nit'        => 'required|string|max:50',
+            'city'              => 'required|string|max:100',
             'executive'         => 'nullable|string|max:100',
             'type'              => 'required|string|max:50',
             'segment'           => 'nullable|string|max:100',
             'negotiation_date'  => 'nullable|date',
-            'address'           => 'nullable|string|max:255',
-            'responsible_name'  => 'nullable|string|max:255',
-            'responsible_phone' => 'nullable|string|max:50',
-            'responsible_email' => 'nullable|email|max:255',
-            'message_subject'   => 'nullable|string|max:255',
+            'address'           => 'required|string|max:255',
+            'responsible_name'  => 'required|string|max:255',
+            'responsible_phone' => 'required|string|max:50',
+            'responsible_email' => 'required|email|max:255',
+            'message_subject'   => 'required|string|max:255',
             'notes'             => 'nullable|string',
         ]);
 
-        $data['type'] = $this->normalizeType($data['type']);
-        session()->put('request_data', $data);
+        $data['type'] = $this->normalizeType($data['type'] ?? 'instalacion');
+        session()->put('service_request_data', $data);
 
         return redirect()->route('client.requests.catalog');
     }
 
-    public function catalog()
+    public function catalog(Request $request)
     {
-        if (!session()->has('request_data')) {
+        if (!session()->has('service_request_data')) {
             return redirect()->route('client.requests.create')
-                ->withErrors(['error' => 'Por favor complete primero los datos del servicio.']);
+                ->with('error', 'Por favor complete primero los datos de la solicitud.');
         }
 
-        $products = Product::all();
-        $cart = session()->get('request_cart', []);
+        $query = Product::query();
+
+        if ($search = trim((string) $request->query('q', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $products = $query->orderBy('name')->paginate(6)->withQueryString();
+        $cart = session()->get('service_request_cart', []);
 
         return view('client.requests.catalog', compact('products', 'cart'));
     }
@@ -135,7 +121,7 @@ class ServiceRequestController extends Controller
         ]);
 
         $product = Product::findOrFail($request->product_id);
-        $cart = session()->get('request_cart', []);
+        $cart = session()->get('service_request_cart', []);
 
         if (isset($cart[$product->id])) {
             $cart[$product->id]['quantity'] += $request->quantity;
@@ -148,35 +134,49 @@ class ServiceRequestController extends Controller
             ];
         }
 
-        session()->put('request_cart', $cart);
+        session()->put('service_request_cart', $cart);
 
         return back()->with('success', "Se agregaron {$request->quantity} unidad(es) de {$product->name} al carrito.");
     }
 
     public function removeFromCart($productId)
     {
-        $cart = session()->get('request_cart', []);
+        $cart = session()->get('service_request_cart', []);
         unset($cart[$productId]);
-        session()->put('request_cart', $cart);
+        session()->put('service_request_cart', $cart);
 
         return back()->with('success', 'Producto retirado de la selección.');
     }
 
     public function confirmOrder()
     {
-        $requestData = session()->get('request_data');
-        $cart = session()->get('request_cart', []);
+        $requestData = session()->get('service_request_data');
+        $cart = session()->get('service_request_cart', []);
 
-        if (!$requestData || empty($cart)) {
+        if (!$requestData) {
+            return redirect()->route('client.requests.create')
+                ->with('error', 'Por favor complete primero los datos de la solicitud.');
+        }
+
+        if (empty($cart)) {
             return back()->withErrors(['error' => 'Debe agregar al menos un producto antes de confirmar.']);
         }
 
-        $client = $this->currentClient();
+        $client = Client::updateOrCreate(
+            ['nit' => $requestData['client_nit']],
+            [
+                'business_name' => $requestData['associated_client'],
+                'city'          => $requestData['city'],
+                'address'       => $requestData['address'],
+                'phone'         => $requestData['responsible_phone'],
+                'email'         => $requestData['responsible_email'],
+            ]
+        );
 
         $serviceRequest = ServiceRequest::create([
             'created_by_user_id' => auth()->id(),
             'client_id'          => $client->id,
-            'provider_id'        => $requestData['provider_id'] ?? null,
+            'provider_id'        => $requestData['provider_id'],
             'type'               => $this->normalizeType($requestData['type'] ?? 'instalacion'),
             'message_subject'    => $requestData['message_subject'] ?? 'Solicitud de equipos',
             'notes'              => $requestData['notes'] ?? null,
@@ -190,7 +190,7 @@ class ServiceRequestController extends Controller
             ]);
         }
 
-        session()->forget(['request_data', 'request_cart']);
+        session()->forget(['service_request_data', 'service_request_cart']);
 
         return redirect()->route('client.requests.index')
             ->with('success', '¡Solicitud confirmada! El proveedor ya puede ver el detalle de los equipos.');
@@ -206,11 +206,11 @@ class ServiceRequestController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
-        $client = $this->currentClient();
+        $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
 
         ServiceRequest::create([
             'created_by_user_id' => auth()->id(),
-            'client_id'          => $client->id,
+            'client_id'          => null,
             'provider_id'        => $data['provider_id'] ?? null,
             'type'               => $this->normalizeType($data['type']),
             'scheduled_date'     => $data['scheduled_date'],
@@ -226,9 +226,7 @@ class ServiceRequestController extends Controller
 
     public function updateStatus(Request $request, ServiceRequest $serviceRequest)
     {
-        $client = $this->currentClient();
-
-        if ($serviceRequest->client_id !== $client->id && $serviceRequest->created_by_user_id !== auth()->id()) {
+        if ($serviceRequest->created_by_user_id !== auth()->id()) {
             abort(403, 'No tienes permiso para modificar esta solicitud.');
         }
 
@@ -257,17 +255,24 @@ class ServiceRequestController extends Controller
             'scheduled_date' => 'required|date',
             'scheduled_time' => 'required|string',
             'type'           => 'required|string',
+            'client_id'      => 'nullable|exists:clients,id',
         ]);
 
-        $client = $this->currentClient();
         $date = $request->scheduled_date;
         $time = $request->scheduled_time;
         $type = $request->type;
 
-        $installedRequests = ServiceRequest::where('client_id', $client->id)
-            ->where('status', 'instalado')
-            ->with(['client.user', 'provider', 'items.product'])
-            ->get();
+        $query = ServiceRequest::where('status', 'instalado')
+            ->with(['client', 'provider', 'items.product'])
+            ->latest();
+
+        if (!empty($request->client_id)) {
+            $query->where('client_id', $request->client_id);
+        } else {
+            $query->where('created_by_user_id', auth()->id());
+        }
+
+        $installedRequests = $query->get();
 
         return view('client.requests.select-installation', compact('date', 'time', 'type', 'installedRequests'));
     }
@@ -282,16 +287,15 @@ class ServiceRequestController extends Controller
             'notes'              => 'nullable|string',
         ]);
 
-        $client = $this->currentClient();
-
-        $originalRequest = ServiceRequest::where('client_id', $client->id)
+        $originalRequest = ServiceRequest::where('created_by_user_id', auth()->id())
             ->with('items')
             ->findOrFail($data['service_request_id']);
+
         $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
 
         $newRequest = ServiceRequest::create([
             'created_by_user_id' => auth()->id(),
-            'client_id'          => $client->id,
+            'client_id'          => $originalRequest->client_id,
             'provider_id'        => $originalRequest->provider_id,
             'type'               => $this->normalizeType($data['type']),
             'scheduled_date'     => $data['scheduled_date'],
