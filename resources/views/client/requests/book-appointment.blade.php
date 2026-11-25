@@ -102,7 +102,7 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
         cursor: pointer;
     }
 
-    /* Botones de Horas */
+    /* Botones de Jornada */
     .time-slot {
         border: 1px solid #cbd5e1;
         background-color: white;
@@ -112,7 +112,7 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
         border-radius: 0.5rem;
     }
 
-    .time-slot:hover:not(:disabled) {
+    .time-slot:hover {
         border-color: var(--primary-corporate);
         color: var(--primary-corporate);
         background-color: #f8fafc;
@@ -123,15 +123,6 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
         color: white;
         border-color: var(--primary-corporate);
         box-shadow: 0 4px 6px -1px rgba(27, 58, 107, 0.2);
-    }
-
-    /* Estilo para horas pasadas bloqueadas */
-    .time-slot:disabled {
-        background-color: #f1f5f9;
-        border-color: #e2e8f0;
-        color: #94a3b8;
-        cursor: not-allowed;
-        text-decoration: line-through;
     }
 
     .btn-corporate {
@@ -186,13 +177,13 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
         @endif
 
         <div class="row g-4">
-            <!-- COLUMNA IZQUIERDA: Calendario Real y Horas -->
+            <!-- COLUMNA IZQUIERDA: Calendario Real y Jornadas -->
             <div class="col-lg-8">
                 <div class="mb-4">
                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill fw-bold mb-2">Paso 1 de 2</span>
                     <h2 class="fw-bold text-dark">Elige la fecha y la hora</h2>
                     <p class="text-muted small">
-                        Selecciona el cliente, el día y el horario para agendar la {{ strtolower($tipoServicio) }} sobre una instalación existente.
+                        Selecciona el cliente, el día y la jornada para agendar la {{ strtolower($tipoServicio) }} sobre una instalación existente.
                     </p>
                 </div>
 
@@ -256,29 +247,30 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
                             </div>
                         </div>
 
-                        <!-- Selector de Horas y Confirmación -->
+                        <!-- Selector de Jornadas y Confirmación -->
                         <div class="col-md-5">
                             <div class="bg-white p-4 border rounded-4 shadow-sm h-100 d-flex flex-column justify-content-between">
                                 <div>
-                                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-clock me-2 text-primary"></i>Horarios Disponibles</h6>
+                                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-clock me-2 text-primary"></i>Jornadas Disponibles</h6>
 
-                                    <!-- Botones de hora con atributo data-time para validación automática -->
-                                    <div class="d-flex flex-column gap-2 mb-4" id="timeSlotsContainer">
+                                    <div class="mb-4" id="timeSlotsContainer">
                                         <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="07:00 AM" onclick="selectTime(this, '07:00 AM')">07:00 AM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="08:00 AM" onclick="selectTime(this, '08:00 AM')">08:00 AM</button></div>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="09:00 AM" onclick="selectTime(this, '09:00 AM')">09:00 AM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="10:00 AM" onclick="selectTime(this, '10:00 AM')">10:00 AM</button></div>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="11:00 AM" onclick="selectTime(this, '11:00 AM')">11:00 AM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="02:00 PM" onclick="selectTime(this, '02:00 PM')">02:00 PM</button></div>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="03:00 PM" onclick="selectTime(this, '03:00 PM')">03:00 PM</button></div>
-                                            <div class="col-6"><button type="button" class="btn time-slot py-2 w-100 fs-7" data-time="04:00 PM" onclick="selectTime(this, '04:00 PM')">04:00 PM</button></div>
+                                            <div class="col-6">
+                                                <button type="button"
+                                                    class="btn time-slot py-2 w-100 fw-semibold"
+                                                    data-time="Jornada AM"
+                                                    onclick="selectTime(this, 'Jornada AM')">
+                                                    <i class="bi bi-sunrise me-1"></i> Jornada AM
+                                                </button>
+                                            </div>
+                                            <div class="col-6">
+                                                <button type="button"
+                                                    class="btn time-slot py-2 w-100 fw-semibold"
+                                                    data-time="Jornada PM"
+                                                    onclick="selectTime(this, 'Jornada PM')">
+                                                    <i class="bi bi-sunset me-1"></i> Jornada PM
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -352,26 +344,6 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
 
     <script>
-        function parseTimeTo24h(timeStr) {
-            const match = (timeStr || '').trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
-            if (!match) return {
-                hour: 0,
-                minute: 0
-            };
-
-            let hour = parseInt(match[1], 10);
-            const minute = parseInt(match[2], 10);
-            const period = (match[3] || '').toUpperCase();
-
-            if (period === 'PM' && hour < 12) hour += 12;
-            if (period === 'AM' && hour === 12) hour = 0;
-
-            return {
-                hour,
-                minute
-            };
-        }
-
         document.addEventListener('DOMContentLoaded', function() {
             const calendarEl = document.getElementById('calendar');
             const now = new Date();
@@ -478,49 +450,14 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
         });
 
         function validateAvailableTimes(selectedDate) {
-            const now = new Date();
-            const todayStr = now.getFullYear() + '-' +
-                String(now.getMonth() + 1).padStart(2, '0') + '-' +
-                String(now.getDate()).padStart(2, '0');
-            const currentHour = now.getHours();
-            const currentMinutes = now.getMinutes();
-
             const timeButtons = document.querySelectorAll('.time-slot');
-            let firstAvailableBtn = null;
-
             timeButtons.forEach(btn => {
-                const timeStr = btn.getAttribute('data-time');
-                const {
-                    hour: btnHour,
-                    minute: btnMinute
-                } = parseTimeTo24h(timeStr);
-
-                let isPast = false;
-                if (selectedDate === todayStr) {
-                    if (btnHour < currentHour || (btnHour === currentHour && btnMinute <= currentMinutes)) {
-                        isPast = true;
-                    }
-                }
-
-                if (isPast) {
-                    btn.disabled = true;
-                    btn.classList.remove('active');
-                } else {
-                    btn.disabled = false;
-                    if (!firstAvailableBtn) {
-                        firstAvailableBtn = btn;
-                    }
-                }
+                btn.disabled = false;
             });
 
             const activeBtn = document.querySelector('.time-slot.active');
-            if (!activeBtn || activeBtn.disabled) {
-                if (firstAvailableBtn) {
-                    selectTime(firstAvailableBtn, firstAvailableBtn.getAttribute('data-time'));
-                } else {
-                    document.getElementById('selectedTimeInput').value = "";
-                    updateSummaryTime();
-                }
+            if (!activeBtn && timeButtons.length > 0) {
+                selectTime(timeButtons[0], timeButtons[0].getAttribute('data-time'));
             }
         }
 
@@ -531,9 +468,9 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
             if (!timeEl) return;
 
             if (dateVal && timeVal) {
-                timeEl.textContent = `${dateVal} a las ${timeVal}`;
+                timeEl.textContent = `${dateVal} — ${timeVal}`;
             } else if (dateVal) {
-                timeEl.textContent = `${dateVal} (Sin hora disponible)`;
+                timeEl.textContent = `${dateVal} (Por elegir jornada)`;
             } else {
                 timeEl.textContent = 'Por definir';
             }
@@ -559,7 +496,7 @@ $tipoServicio = request()->query('tipo', 'Auditoría');
             const timeVal = document.getElementById('selectedTimeInput').value;
             if (!timeVal) {
                 e.preventDefault();
-                alert('Por favor, selecciona un horario válido disponible.');
+                alert('Por favor, selecciona una jornada disponible.');
             }
         });
     </script>

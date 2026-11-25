@@ -124,21 +124,54 @@
                         <tbody>
                             @forelse($requests as $req)
                             @php
-                            $statusMap = [
-                            'pendiente' => ['percent' => 25, 'hex' => '#ffc107', 'color' => 'bg-warning', 'label' => 'Pendiente', 'icon' => 'bi-clock-history', 'badge' => 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
-                            'confirmada' => ['percent' => 50, 'hex' => '#0d6efd', 'color' => 'bg-primary', 'label' => 'Confirmada', 'icon' => 'bi-check-circle', 'badge' => 'bg-primary-subtle text-primary-emphasis border-primary-subtle'],
-                            'despachado' => ['percent' => 75, 'hex' => '#0dcaf0', 'color' => 'bg-info', 'label' => 'Despachado', 'icon' => 'bi-truck', 'badge' => 'bg-info-subtle text-info-emphasis border-info-subtle'],
-                            'instalado' => ['percent' => 100, 'hex' => '#198754', 'color' => 'bg-success', 'label' => 'Instalado', 'icon' => 'bi-house-check', 'badge' => 'bg-success-subtle text-success-emphasis border-success-subtle'],
-                            'cancelada' => ['percent' => 100, 'hex' => '#dc3545', 'color' => 'bg-danger', 'label' => 'Cancelada', 'icon' => 'bi-x-circle', 'badge' => 'bg-danger-subtle text-danger-emphasis border-danger-subtle'],
+                            $statusNormalized = strtolower((string) $req->status);
+                            $typeNormalized = strtolower(iconv('UTF-8', 'ASCII//TRANSLIT', (string) ($req->type ?? 'instalacion')));
+                            $isServiceFlow = in_array($typeNormalized, ['mantenimiento', 'auditoria'], true);
+
+                            $statusMetaMap = [
+                            'pendiente' => ['hex' => '#ffc107', 'label' => 'Pendiente', 'icon' => 'bi-clock-history', 'badge' => 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                            'confirmada' => ['hex' => '#0d6efd', 'label' => 'Confirmada', 'icon' => 'bi-check-circle', 'badge' => 'bg-primary-subtle text-primary-emphasis border-primary-subtle'],
+                            'confirmado' => ['hex' => '#0d6efd', 'label' => 'Confirmado', 'icon' => 'bi-check-circle', 'badge' => 'bg-primary-subtle text-primary-emphasis border-primary-subtle'],
+                            'despachado' => ['hex' => '#0dcaf0', 'label' => 'Despachado', 'icon' => 'bi-truck', 'badge' => 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                            'agendado' => ['hex' => '#0dcaf0', 'label' => 'Agendado', 'icon' => 'bi-calendar-check','badge' => 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                            'instalado' => ['hex' => '#198754', 'label' => 'Instalado', 'icon' => 'bi-house-check', 'badge' => 'bg-success-subtle text-success-emphasis border-success-subtle'],
+                            'realizado' => ['hex' => '#198754', 'label' => 'Realizado', 'icon' => 'bi-patch-check', 'badge' => 'bg-success-subtle text-success-emphasis border-success-subtle'],
+                            'cancelada' => ['hex' => '#dc3545', 'label' => 'Cancelada', 'icon' => 'bi-x-circle', 'badge' => 'bg-danger-subtle text-danger-emphasis border-danger-subtle'],
                             ];
 
-                            $currentStatus = $statusMap[$req->status] ?? [
-                            'percent' => 0,
+                            $meta = $statusMetaMap[$statusNormalized] ?? [
                             'hex' => '#6c757d',
-                            'color' => 'bg-secondary',
                             'label' => ucfirst($req->status),
                             'icon' => 'bi-info-circle',
                             'badge' => 'bg-secondary-subtle text-secondary-emphasis border-secondary-subtle',
+                            ];
+
+                            if ($statusNormalized === 'cancelada') {
+                            $percent = 100;
+                            } elseif ($isServiceFlow) {
+                            $percent = match ($statusNormalized) {
+                            'pendiente' => 25,
+                            'confirmada', 'confirmado', 'agendado' => 50,
+                            'realizado', 'instalado' => 100,
+                            default => 0,
+                            };
+                            } else {
+                            // Instalación: Pendiente (25%) -> Confirmado (50%) -> Despachado / Agendado (75%) -> Instalado (100%)
+                            $percent = match ($statusNormalized) {
+                            'pendiente' => 25,
+                            'confirmada', 'confirmado' => 50,
+                            'despachado', 'agendado' => 75,
+                            'instalado', 'realizado' => 100,
+                            default => 0,
+                            };
+                            }
+
+                            $currentStatus = [
+                            'percent' => $percent,
+                            'hex' => $meta['hex'],
+                            'label' => $meta['label'],
+                            'icon' => $meta['icon'],
+                            'badge' => $meta['badge'],
                             ];
 
                             $clientProfile = $req->client;
@@ -250,12 +283,20 @@
                                                         </div>
                                                         <div class="flex-grow-1">
                                                             <div class="small fw-bold text-dark">Estado actual: {{ $currentStatus['label'] }}</div>
+                                                            @if($isServiceFlow)
                                                             <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 0.72rem;">
                                                                 <span>1. Pendiente (25%)</span>
-                                                                <span>2. Confirmada (50%)</span>
-                                                                <span>3. Despachado (75%)</span>
+                                                                <span>2. Agendado (50%)</span>
+                                                                <span>3. Realizado (100%)</span>
+                                                            </div>
+                                                            @else
+                                                            <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 0.72rem;">
+                                                                <span>1. Pendiente (25%)</span>
+                                                                <span>2. Confirmado (50%)</span>
+                                                                <span>3. Despachado / Agendado (75%)</span>
                                                                 <span>4. Instalado (100%)</span>
                                                             </div>
+                                                            @endif
                                                         </div>
                                                     </div>
 
@@ -320,7 +361,7 @@
                                                         </table>
                                                     </div>
 
-                                                    @if($req->status === 'pendiente')
+                                                    @if($statusNormalized === 'pendiente')
                                                     <hr class="text-muted my-3">
                                                     <div class="d-flex justify-content-end gap-2">
                                                         <form action="{{ route('provider.requests.updateStatus', $req) }}" method="POST">
@@ -343,7 +384,7 @@
                                                     </div>
                                                     @else
                                                     <div class="alert alert-secondary text-center small mb-0 rounded-3">
-                                                        <i class="bi bi-lock me-1"></i> Esta solicitud ya se encuentra <strong>{{ ucfirst($req->status) }}</strong> y no admite cambios.
+                                                        <i class="bi bi-lock me-1"></i> Esta solicitud ya se encuentra <strong>{{ $currentStatus['label'] }}</strong> y no admite cambios.
                                                     </div>
                                                     @endif
                                                 </div>

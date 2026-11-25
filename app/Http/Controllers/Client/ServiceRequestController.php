@@ -18,6 +18,21 @@ class ServiceRequestController extends Controller
         return Str::of($type)->ascii()->lower()->value();
     }
 
+    /**
+     * Cliente elige "Jornada AM" o "Jornada PM" (o una hora exacta).
+     * Bodega asigna la hora final y exacta al agendar.
+     */
+    private function normalizeScheduledTime(string $time): string
+    {
+        $clean = trim($time);
+
+        return match (strtoupper($clean)) {
+            'JORNADA AM', 'AM' => '08:00:00',
+            'JORNADA PM', 'PM' => '14:00:00',
+            default            => Carbon::parse($clean)->format('H:i:s'),
+        };
+    }
+
     public function index()
     {
         $requests = ServiceRequest::where('created_by_user_id', auth()->id())
@@ -139,6 +154,22 @@ class ServiceRequestController extends Controller
         return back()->with('success', "Se agregaron {$request->quantity} unidad(es) de {$product->name} al carrito.");
     }
 
+    public function updateCart(Request $request, $productId)
+    {
+        $request->validate([
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $cart = session()->get('service_request_cart', []);
+
+        if (isset($cart[$productId])) {
+            $cart[$productId]['quantity'] = (int) $request->quantity;
+            session()->put('service_request_cart', $cart);
+        }
+
+        return back()->with('success', 'Cantidad actualizada en el carrito.');
+    }
+
     public function removeFromCart($productId)
     {
         $cart = session()->get('service_request_cart', []);
@@ -206,7 +237,7 @@ class ServiceRequestController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
-        $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
+        $data['scheduled_time'] = $this->normalizeScheduledTime($data['scheduled_time']);
 
         ServiceRequest::create([
             'created_by_user_id' => auth()->id(),
@@ -291,7 +322,7 @@ class ServiceRequestController extends Controller
             ->with('items')
             ->findOrFail($data['service_request_id']);
 
-        $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
+        $data['scheduled_time'] = $this->normalizeScheduledTime($data['scheduled_time']);
 
         $newRequest = ServiceRequest::create([
             'created_by_user_id' => auth()->id(),

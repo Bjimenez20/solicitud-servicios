@@ -9,6 +9,7 @@ use App\Models\Provider;
 use App\Models\ServiceRequest;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ServiceRequestController extends Controller
@@ -29,6 +30,21 @@ class ServiceRequestController extends Controller
     private function normalizeType(string $type): string
     {
         return Str::of($type)->ascii()->lower()->value();
+    }
+
+    /**
+     * Cliente y Proveedor envían "Jornada AM" o "Jornada PM" (o una hora exacta).
+     * Bodega asigna la hora final y exacta al agendar.
+     */
+    private function normalizeScheduledTime(string $time): string
+    {
+        $clean = trim($time);
+
+        return match (strtoupper($clean)) {
+            'JORNADA AM', 'AM' => '08:00:00',
+            'JORNADA PM', 'PM' => '14:00:00',
+            default            => Carbon::parse($clean)->format('H:i:s'),
+        };
     }
 
     public function index()
@@ -63,7 +79,7 @@ class ServiceRequestController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
-        $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
+        $data['scheduled_time'] = $this->normalizeScheduledTime($data['scheduled_time']);
         $provider = $this->currentProvider();
 
         ServiceRequest::create([
@@ -87,17 +103,68 @@ class ServiceRequestController extends Controller
         $provider = $this->currentProvider();
 
         $request->validate([
-            'status'         => 'required|in:pendiente,confirmada,cancelada,despachado,instalado,Agendado,realizado',
+            'status'         => 'required|in:pendiente,confirmada,cancelada,despachado,instalado,agendado,realizado',
             'provider_notes' => 'nullable|string',
         ]);
 
-        $serviceRequest->update([
-            'provider_id'    => $serviceRequest->provider_id ?? $provider->id,
-            'status'         => $request->status,
-            'provider_notes' => $request->provider_notes ?? $serviceRequest->provider_notes,
-        ]);
+        $newStatus = strtolower($request->status);
+        $previousStatus = strtolower((string) $serviceRequest->status);
+        $typeNormalized = $this->normalizeType((string) $serviceRequest->type);
 
-        return back()->with('success', 'El estado del registro #' . $serviceRequest->id . ' ha sido actualizado a ' . ucfirst($request->status) . '.');
+        $outOfStockProducts = [];
+
+        DB::transaction(function () use (
+            $serviceRequest,
+            $provider,
+            $request,
+            $newStatus,
+            $previousStatus,
+            $typeNormalized,
+            &$outOfStockProducts
+        ) {
+            $serviceRequest->load('items.product');
+
+            $shouldDeductStock = $typeNormalized === 'instalacion'
+                && in_array($newStatus, ['confirmada', 'instalado'], true)
+                && !in_array($previousStatus, ['confirmada', 'instalado'], true);
+
+            if ($shouldDeductStock) {
+                foreach ($serviceRequest->items as $item) {
+                    $qty = (int) $item->quantity;
+                    $product = Product::lockForUpdate()->find($item->product_id);
+
+                    if ($product) {
+                        $newStock = max(0, (int) $product->stock - $qty);
+                        $product->update(['stock' => $newStock]);
+
+                        if ($newStock === 0) {
+                            $outOfStockProducts[] = $product->name;
+                        }
+                    }
+                }
+            }
+
+            $serviceRequest->update([
+                'provider_id'    => $serviceRequest->provider_id ?? $provider->id,
+                'status'         => $newStatus,
+                'provider_notes' => $request->provider_notes ?? $serviceRequest->provider_notes,
+            ]);
+        });
+
+        $redirect = back()->with(
+            'success',
+            'El estado del registro #' . $serviceRequest->id . ' ha sido actualizado a ' . ucfirst($newStatus) . '.'
+        );
+
+        if (!empty($outOfStockProducts)) {
+            $names = implode(', ', array_unique($outOfStockProducts));
+            $redirect->with(
+                'warning',
+                "Alerta de inventario: ya no hay stock disponible para: {$names}. La instalación se confirmó sin inconvenientes."
+            );
+        }
+
+        return $redirect;
     }
 
     public function create()
@@ -148,7 +215,7 @@ class ServiceRequestController extends Controller
     public function catalog(Request $request)
     {
         if (!session()->has('service_request_data')) {
-            return redirect()->route('provider.requests.create') // o client.requests.create
+            return redirect()->route('provider.requests.create')
                 ->with('error', 'Por favor complete primero los datos de la solicitud.');
         }
 
@@ -192,6 +259,22 @@ class ServiceRequestController extends Controller
         return back()->with('success', 'Producto agregado al carrito.');
     }
 
+    public function updateCart(Request $request, $productId)
+    {
+        $request->validate([
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $cart = session()->get('service_request_cart', []);
+
+        if (isset($cart[$productId])) {
+            $cart[$productId]['quantity'] = (int) $request->quantity;
+            session()->put('service_request_cart', $cart);
+        }
+
+        return back()->with('success', 'Cantidad actualizada en el carrito.');
+    }
+
     public function removeFromCart($productId)
     {
         $cart = session()->get('service_request_cart', []);
@@ -215,39 +298,70 @@ class ServiceRequestController extends Controller
         }
 
         $provider = $this->currentProvider();
+        $typeNormalized = $this->normalizeType($data['type'] ?? 'instalacion');
+        $outOfStockProducts = [];
 
-        $client = Client::updateOrCreate(
-            ['nit' => $data['client_nit']],
-            [
-                'business_name' => $data['associated_client'],
-                'city'          => $data['city'],
-                'address'       => $data['address'],
-                'phone'         => $data['responsible_phone'],
-                'email'         => $data['responsible_email'],
-            ]
-        );
+        $serviceRequest = DB::transaction(function () use ($data, $cart, $provider, $typeNormalized, &$outOfStockProducts) {
+            $client = Client::updateOrCreate(
+                ['nit' => $data['client_nit']],
+                [
+                    'business_name' => $data['associated_client'],
+                    'city'          => $data['city'],
+                    'address'       => $data['address'],
+                    'phone'         => $data['responsible_phone'],
+                    'email'         => $data['responsible_email'],
+                ]
+            );
 
-        $serviceRequest = ServiceRequest::create([
-            'created_by_user_id' => auth()->id(),
-            'client_id'          => $client->id,
-            'provider_id'        => $provider->id,
-            'type'               => $this->normalizeType($data['type'] ?? 'instalacion'),
-            'status'             => 'confirmada',
-            'message_subject'    => $data['message_subject'] ?? 'Solicitud creada por Proveedor',
-            'notes'              => $data['notes'] ?? null,
-        ]);
-
-        foreach ($cart as $productId => $item) {
-            $serviceRequest->items()->create([
-                'product_id' => $productId,
-                'quantity'   => $item['quantity'],
+            $req = ServiceRequest::create([
+                'created_by_user_id' => auth()->id(),
+                'client_id'          => $client->id,
+                'provider_id'        => $provider->id,
+                'type'               => $typeNormalized,
+                'status'             => 'confirmada',
+                'message_subject'    => $data['message_subject'] ?? 'Solicitud creada por Proveedor',
+                'notes'              => $data['notes'] ?? null,
             ]);
-        }
+
+            foreach ($cart as $productId => $item) {
+                $qty = (int) $item['quantity'];
+
+                $req->items()->create([
+                    'product_id' => $productId,
+                    'quantity'   => $qty,
+                ]);
+
+                if ($typeNormalized === 'instalacion') {
+                    $product = Product::lockForUpdate()->find($productId);
+
+                    if ($product) {
+                        $newStock = max(0, (int) $product->stock - $qty);
+                        $product->update(['stock' => $newStock]);
+
+                        if ($newStock === 0) {
+                            $outOfStockProducts[] = $product->name;
+                        }
+                    }
+                }
+            }
+
+            return $req;
+        });
 
         session()->forget(['service_request_data', 'service_request_cart']);
 
-        return redirect()->route('provider.requests.index')
+        $redirect = redirect()->route('provider.requests.index')
             ->with('success', '¡Solicitud creada exitosamente con ID #' . $serviceRequest->id . '!');
+
+        if (!empty($outOfStockProducts)) {
+            $names = implode(', ', array_unique($outOfStockProducts));
+            $redirect->with(
+                'warning',
+                "Alerta de inventario: ya no hay stock disponible para: {$names}. La solicitud se registró sin inconvenientes."
+            );
+        }
+
+        return $redirect;
     }
 
     public function selectService()
@@ -305,7 +419,7 @@ class ServiceRequestController extends Controller
         ]);
 
         $originalRequest = ServiceRequest::with('items')->findOrFail($data['service_request_id']);
-        $data['scheduled_time'] = Carbon::parse($data['scheduled_time'])->format('H:i:s');
+        $data['scheduled_time'] = $this->normalizeScheduledTime($data['scheduled_time']);
 
         $newRequest = ServiceRequest::create([
             'created_by_user_id' => auth()->id(),

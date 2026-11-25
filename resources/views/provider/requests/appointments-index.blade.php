@@ -4,6 +4,43 @@
 <x-head />
 
 <style>
+    .progress-ring {
+        --size: 46px;
+        --thickness: 5px;
+        --progress: 25%;
+        --ring-color: #ffc107;
+        --track-color: #e9ecef;
+
+        width: var(--size);
+        height: var(--size);
+        border-radius: 50%;
+        background: conic-gradient(var(--ring-color) 0% var(--progress),
+                var(--track-color) var(--progress) 100%);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    .progress-ring::before {
+        content: "";
+        width: calc(var(--size) - (var(--thickness) * 2));
+        height: calc(var(--size) - (var(--thickness) * 2));
+        border-radius: 50%;
+        background-color: #ffffff;
+        position: absolute;
+    }
+
+    .progress-ring span {
+        position: relative;
+        z-index: 1;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #212529;
+        line-height: 1;
+    }
+
     .pagination {
         margin-bottom: 0;
         gap: 4px;
@@ -71,6 +108,7 @@
                                 <th class="py-3 px-4">Dirección</th>
                                 <th class="py-3 px-4">Equipos</th>
                                 <th class="py-3 px-4">Estado</th>
+                                <th class="py-3 px-4 text-center">Progreso</th>
                                 <th class="py-3 px-4 text-end">Acciones</th>
                             </tr>
                         </thead>
@@ -83,111 +121,193 @@
                             ?? 'Cliente N/A';
                             $addressDisplay = $clientProfile?->address ?? 'N/A';
                             $cityDisplay = $clientProfile?->city ?? 'N/A';
-                            @endphp
-                            <tr>
-                                <td class="py-3 px-4">
-                                    <div class="fw-bold text-dark">#{{ $app->id }}</div>
-                                    <span class="badge bg-info-subtle text-info-emphasis border px-2 py-1 rounded-pill text-uppercase" style="font-size: 0.7rem;">
-                                        {{ $app->type }}
-                                    </span>
-                                </td>
-                                <td class="py-3 px-4">
-                                    <div class="fw-semibold text-dark">{{ $clientNameDisplay }}</div>
-                                </td>
-                                <td class="py-3 px-4 fw-semibold text-primary">
-                                    <i class="bi bi-clock me-1"></i>
-                                    {{ \Carbon\Carbon::parse($app->scheduled_date)->format('d/m/Y') }} - {{ $app->scheduled_time }}
-                                </td>
-                                <td class="py-3 px-4 text-secondary small">
-                                    <div><i class="bi bi-geo-alt text-danger me-1"></i> {{ $addressDisplay }}</div>
-                                    <div class="text-muted">{{ $cityDisplay }}</div>
-                                </td>
-                                <td class="py-3 px-4">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-toggle="modal" data-bs-target="#itemsModal{{ $app->id }}">
-                                        <i class="bi bi-box-seam me-1"></i> Ver ({{ $app->items->sum('quantity') }})
-                                    </button>
-                                </td>
-                                <td class="py-3 px-4">
-                                    @if($app->status === 'pendiente')
-                                    <span class="badge bg-warning-subtle text-warning-emphasis border px-3 py-2 rounded-pill fw-bold">Pendiente</span>
-                                    @elseif($app->status === 'confirmada')
-                                    <span class="badge bg-primary-subtle text-primary border px-3 py-2 rounded-pill fw-bold">Confirmada</span>
-                                    @elseif($app->status === 'realizado')
-                                    <span class="badge bg-success-subtle text-success border px-3 py-2 rounded-pill fw-bold">
-                                        <i class="bi bi-check-all me-1"></i> Realizado
-                                    </span>
-                                    @elseif($app->status === 'Agendado')
-                                    <span class="badge bg-info-subtle text-info border px-3 py-2 rounded-pill fw-bold">
-                                        <i class="bi bi-calendar-event me-1"></i> Agendado
-                                    </span>
-                                    @else
-                                    <span class="badge bg-danger-subtle text-danger border px-3 py-2 rounded-pill fw-bold">{{ ucfirst($app->status) }}</span>
-                                    @endif
-                                </td>
-                                <td class="py-3 px-4 text-end">
-                                    @if($app->status === 'pendiente')
-                                    <div class="d-inline-flex gap-2">
-                                        <form action="{{ route('provider.requests.updateStatus', $app->id) }}" method="POST">
-                                            @csrf
-                                            @method('PATCH')
-                                            <input type="hidden" name="status" value="confirmada">
-                                            <button type="submit" class="btn btn-sm btn-success fw-bold rounded-3" title="Aprobar Cita">
-                                                <i class="bi bi-check-lg"></i> Aprobar
-                                            </button>
-                                        </form>
-                                        <form action="{{ route('provider.requests.updateStatus', $app->id) }}" method="POST">
-                                            @csrf
-                                            @method('PATCH')
-                                            <input type="hidden" name="status" value="cancelada">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger fw-bold rounded-3" title="Rechazar Cita">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                    @elseif($app->status === 'confirmada')
-                                    <span class="text-primary small fw-semibold"><i class="bi bi-clock me-1"></i> Servicio confirmado</span>
-                                    @elseif($app->status === 'realizado')
-                                    <span class="text-success small fw-semibold"><i class="bi bi-shield-check me-1"></i> Servicio completado</span>
-                                    @elseif($app->status === 'Agendado')
-                                    <span class="text-info small fst-italic"><i class="bi bi-calendar-event me-1"></i> Servicio agendado</span>
-                                    @else
-                                    <span class="text-danger small fst-italic">Servicio cancelado</span>
-                                    @endif
-                                </td>
-                            </tr>
 
-                            <!-- Modal para ver equipos vinculados -->
-                            <div class="modal fade" id="itemsModal{{ $app->id }}" tabindex="-1" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content border-0 shadow rounded-4">
-                                        <div class="modal-header border-bottom">
-                                            <h6 class="modal-title fw-bold">Equipos Vinculados - Cita #{{ $app->id }}</h6>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            $statusNormalized = strtolower((string) $app->status);
+                            $isInitialStage = in_array($statusNormalized, ['pendiente', 'confirmada', 'confirmado'], true);
+
+                            $formattedDate = $app->scheduled_date
+                            ? \Carbon\Carbon::parse($app->scheduled_date)->format('d/m/Y')
+                            : 'Sin fecha';
+
+                            $rawTime = trim((string) ($app->scheduled_time ?? ''));
+                            $scheduleDisplay = $formattedDate;
+
+                            if ($rawTime !== '') {
+                            if ($isInitialStage) {
+                            $upperTime = strtoupper($rawTime);
+                            if (str_contains($upperTime, 'AM')) {
+                            $jornadaLabel = 'Jornada AM';
+                            } elseif (str_contains($upperTime, 'PM')) {
+                            $jornadaLabel = 'Jornada PM';
+                            } else {
+                            try {
+                            $parsed = \Carbon\Carbon::parse($rawTime);
+                            $jornadaLabel = $parsed->hour < 12 ? 'Jornada AM' : 'Jornada PM' ;
+                                } catch (\Throwable $e) {
+                                $jornadaLabel=$rawTime;
+                                }
+                                }
+                                $scheduleDisplay="{$formattedDate} - {$jornadaLabel}" ;
+                                } else {
+                                try {
+                                $exactTime=\Carbon\Carbon::parse($rawTime)->format('h:i A');
+                                $scheduleDisplay = "{$formattedDate} - {$exactTime}";
+                                } catch (\Throwable $e) {
+                                $scheduleDisplay = "{$formattedDate} - {$rawTime}";
+                                }
+                                }
+                                }
+
+                                // Ciclo: Pendiente (25%) -> Confirmado (50%) -> Agendado (75%) -> Realizado (100%)
+                                $statusMeta = match ($statusNormalized) {
+                                'pendiente' => [
+                                'percent' => 25,
+                                'hex' => '#ffc107',
+                                'label' => 'Pendiente',
+                                ],
+                                'confirmada', 'confirmado' => [
+                                'percent' => 50,
+                                'hex' => '#0d6efd',
+                                'label' => 'Confirmado',
+                                ],
+                                'agendado' => [
+                                'percent' => 75,
+                                'hex' => '#0dcaf0',
+                                'label' => 'Agendado',
+                                ],
+                                'realizado' => [
+                                'percent' => 100,
+                                'hex' => '#198754',
+                                'label' => 'Realizado',
+                                ],
+                                'cancelada' => [
+                                'percent' => 100,
+                                'hex' => '#dc3545',
+                                'label' => 'Cancelada',
+                                ],
+                                default => [
+                                'percent' => 0,
+                                'hex' => '#6c757d',
+                                'label' => ucfirst((string) $app->status),
+                                ],
+                                };
+                                @endphp
+                                <tr>
+                                    <td class="py-3 px-4">
+                                        <div class="fw-bold text-dark">#{{ $app->id }}</div>
+                                        <span class="badge bg-info-subtle text-info-emphasis border px-2 py-1 rounded-pill text-uppercase" style="font-size: 0.7rem;">
+                                            {{ $app->type }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        <div class="fw-semibold text-dark">{{ $clientNameDisplay }}</div>
+                                    </td>
+                                    <td class="py-3 px-4 fw-semibold text-primary">
+                                        <i class="bi bi-clock me-1"></i>
+                                        {{ $scheduleDisplay }}
+                                    </td>
+                                    <td class="py-3 px-4 text-secondary small">
+                                        <div><i class="bi bi-geo-alt text-danger me-1"></i> {{ $addressDisplay }}</div>
+                                        <div class="text-muted">{{ $cityDisplay }}</div>
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-toggle="modal" data-bs-target="#itemsModal{{ $app->id }}">
+                                            <i class="bi bi-box-seam me-1"></i> Ver ({{ $app->items->sum('quantity') }})
+                                        </button>
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        @if($statusNormalized === 'pendiente')
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border px-3 py-2 rounded-pill fw-bold">Pendiente</span>
+                                        @elseif(in_array($statusNormalized, ['confirmada', 'confirmado'], true))
+                                        <span class="badge bg-primary-subtle text-primary border px-3 py-2 rounded-pill fw-bold">Confirmado</span>
+                                        @elseif($statusNormalized === 'agendado')
+                                        <span class="badge bg-info-subtle text-info border px-3 py-2 rounded-pill fw-bold">
+                                            <i class="bi bi-calendar-event me-1"></i> Agendado
+                                        </span>
+                                        @elseif($statusNormalized === 'realizado')
+                                        <span class="badge bg-success-subtle text-success border px-3 py-2 rounded-pill fw-bold">
+                                            <i class="bi bi-check-all me-1"></i> Realizado
+                                        </span>
+                                        @else
+                                        <span class="badge bg-danger-subtle text-danger border px-3 py-2 rounded-pill fw-bold">{{ ucfirst($app->status) }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-3 px-4 text-center">
+                                        <div class="progress-ring"
+                                            style="--progress: {{ $statusMeta['percent'] }}%; --ring-color: {{ $statusMeta['hex'] }};"
+                                            role="progressbar"
+                                            aria-label="Progreso de agendamiento"
+                                            aria-valuenow="{{ $statusMeta['percent'] }}"
+                                            aria-valuemin="0"
+                                            aria-valuemax="100"
+                                            title="{{ $statusMeta['label'] }} ({{ $statusMeta['percent'] }}%)">
+                                            <span>{{ $statusMeta['percent'] }}%</span>
                                         </div>
-                                        <div class="modal-body">
-                                            <p class="small text-muted mb-3">{{ $app->message_subject }}</p>
-                                            <ul class="list-group list-group-flush">
-                                                @forelse($app->items as $item)
-                                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                                                    <span class="fw-medium">{{ $item->product?->name ?? 'Producto #' . $item->product_id }}</span>
-                                                    <span class="badge bg-primary rounded-pill">Cant: {{ $item->quantity }}</span>
-                                                </li>
-                                                @empty
-                                                <li class="list-group-item text-muted small px-0">No hay productos específicos asociados.</li>
-                                                @endforelse
-                                            </ul>
+                                    </td>
+                                    <td class="py-3 px-4 text-end">
+                                        @if($statusNormalized === 'pendiente')
+                                        <div class="d-inline-flex gap-2">
+                                            <form action="{{ route('provider.requests.updateStatus', $app->id) }}" method="POST">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="status" value="confirmada">
+                                                <button type="submit" class="btn btn-sm btn-success fw-bold rounded-3" title="Aprobar Cita">
+                                                    <i class="bi bi-check-lg"></i> Aprobar
+                                                </button>
+                                            </form>
+                                            <form action="{{ route('provider.requests.updateStatus', $app->id) }}" method="POST">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="status" value="cancelada">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-bold rounded-3" title="Rechazar Cita">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                        @elseif(in_array($statusNormalized, ['confirmada', 'confirmado'], true))
+                                        <span class="text-primary small fw-semibold"><i class="bi bi-clock me-1"></i> Servicio confirmado</span>
+                                        @elseif($statusNormalized === 'agendado')
+                                        <span class="text-info small fst-italic"><i class="bi bi-calendar-event me-1"></i> Servicio agendado</span>
+                                        @elseif($statusNormalized === 'realizado')
+                                        <span class="text-success small fw-semibold"><i class="bi bi-shield-check me-1"></i> Servicio completado</span>
+                                        @else
+                                        <span class="text-danger small fst-italic">Servicio cancelado</span>
+                                        @endif
+                                    </td>
+                                </tr>
+
+                                <!-- Modal para ver equipos vinculados -->
+                                <div class="modal fade" id="itemsModal{{ $app->id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content border-0 shadow rounded-4">
+                                            <div class="modal-header border-bottom">
+                                                <h6 class="modal-title fw-bold">Equipos Vinculados - Cita #{{ $app->id }}</h6>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p class="small text-muted mb-3">{{ $app->message_subject }}</p>
+                                                <ul class="list-group list-group-flush">
+                                                    @forelse($app->items as $item)
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                                        <span class="fw-medium">{{ $item->product?->name ?? 'Producto #' . $item->product_id }}</span>
+                                                        <span class="badge bg-primary rounded-pill">Cant: {{ $item->quantity }}</span>
+                                                    </li>
+                                                    @empty
+                                                    <li class="list-group-item text-muted small px-0">No hay productos específicos asociados.</li>
+                                                    @endforelse
+                                                </ul>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            @empty
-                            <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
-                                    <i class="bi bi-calendar-x display-4 d-block mb-2"></i>
-                                    No hay agendamientos registrados por el momento.
-                                </td>
-                            </tr>
-                            @endforelse
+                                @empty
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <i class="bi bi-calendar-x display-4 d-block mb-2"></i>
+                                        No hay agendamientos registrados por el momento.
+                                    </td>
+                                </tr>
+                                @endforelse
                         </tbody>
                     </table>
                 </div>

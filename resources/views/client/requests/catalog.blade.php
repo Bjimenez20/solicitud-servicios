@@ -1,5 +1,6 @@
 @php
-$routePrefix = auth()->user()->isProvider() ? 'provider.' : 'client.';
+$isProvider = auth()->user()->isProvider();
+$routePrefix = $isProvider ? 'provider.' : 'client.';
 $totalUnits = collect($cart)->sum('quantity');
 $totalProductsCount = method_exists($products, 'total') ? $products->total() : $products->count();
 @endphp
@@ -65,6 +66,11 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
         height: 40px;
     }
 
+    .qty-stepper.qty-stepper-sm {
+        height: 30px;
+        border-radius: 0.5rem;
+    }
+
     .qty-stepper button {
         width: 34px;
         height: 100%;
@@ -77,6 +83,11 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
         justify-content: center;
         cursor: pointer;
         transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .qty-stepper.qty-stepper-sm button {
+        width: 26px;
+        font-size: 0.8rem;
     }
 
     .qty-stepper button:hover {
@@ -94,6 +105,11 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
         color: #0f172a;
         font-size: 0.9rem;
         -moz-appearance: textfield;
+    }
+
+    .qty-stepper.qty-stepper-sm input[type="number"] {
+        width: 36px;
+        font-size: 0.8rem;
     }
 
     .qty-stepper input[type="number"]::-webkit-outer-spin-button,
@@ -210,6 +226,7 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
                     @forelse($products as $product)
                     @php
                     $qtyInCart = $cart[$product->id]['quantity'] ?? 0;
+                    $stockVal = (int) ($product->stock ?? 0);
                     @endphp
                     <div class="col-sm-6 col-xl-4 product-item" data-search="{{ strtolower($product->name . ' ' . ($product->description ?? '')) }}">
                         <div class="card h-100 product-card shadow-sm rounded-4 overflow-hidden bg-white">
@@ -227,9 +244,18 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
 
                             <div class="card-body d-flex flex-column justify-content-between p-3 p-md-4">
                                 <div class="mb-3">
-                                    <span class="text-uppercase text-primary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.04em;">
-                                        Dispensador
-                                    </span>
+                                    <div class="d-flex justify-content-between align-items-center gap-2">
+                                        <span class="text-uppercase text-primary fw-bold" style="font-size: 0.68rem; letter-spacing: 0.04em;">
+                                            Dispensador
+                                        </span>
+
+                                        @if($isProvider)
+                                        <span class="badge {{ $stockVal > 0 ? 'bg-light text-dark border' : 'bg-danger-subtle text-danger' }} rounded-pill px-2 py-1" style="font-size: 0.7rem;">
+                                            Stock: {{ $stockVal }}
+                                        </span>
+                                        @endif
+                                    </div>
+
                                     <h6 class="card-title fw-bold text-dark mt-1 mb-2">{{ $product->name }}</h6>
                                     <p class="card-text text-muted small mb-0" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
                                         {{ $product->description ?? 'Equipo disponible para instalación y mantenimiento.' }}
@@ -281,7 +307,6 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
                     </div>
                 </div>
                 @else
-                <!-- Contenedor de paginación JS automática si el controlador aún usa Product::all() -->
                 <div id="clientPaginationWrapper" class="card border-0 shadow-sm rounded-4 mt-4 d-none">
                     <div class="card-body py-3 px-4 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
                         <div class="text-muted small" id="clientPaginationInfo"></div>
@@ -317,18 +342,35 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
 
                         <ul class="list-group list-group-flush mb-4">
                             @foreach($cart as $id => $item)
-                            <li class="list-group-item px-0 py-3 d-flex justify-content-between align-items-center gap-2">
-                                <div>
-                                    <h6 class="mb-1 fw-bold text-dark small">{{ $item['name'] }}</h6>
-                                    <span class="badge bg-primary-subtle text-primary rounded-pill">
-                                        Cantidad: {{ $item['quantity'] }}
-                                    </span>
+                            <li class="list-group-item px-0 py-3">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <h6 class="mb-2 fw-bold text-dark small">{{ $item['name'] }}</h6>
+                                    <form action="{{ route($routePrefix . 'cart.remove', $id) }}" method="POST">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 rounded-circle p-1" title="Quitar del carrito">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 </div>
-                                <form action="{{ route($routePrefix . 'cart.remove', $id) }}" method="POST">
+
+                                <!-- Sumar o restar cantidad directamente en el carrito -->
+                                <form action="{{ route($routePrefix . 'cart.update', $id) }}" method="POST" class="d-flex align-items-center gap-2 cart-update-form">
                                     @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 rounded-circle" title="Quitar del carrito">
-                                        <i class="bi bi-trash"></i>
+                                    @method('PATCH')
+
+                                    <div class="qty-stepper qty-stepper-sm" aria-label="Ajustar cantidad en carrito">
+                                        <button type="button" class="btn-qty-minus" aria-label="Restar unidad">
+                                            <i class="bi bi-dash"></i>
+                                        </button>
+                                        <input type="number" name="quantity" value="{{ $item['quantity'] }}" min="1" max="999" class="qty-input" required>
+                                        <button type="button" class="btn-qty-plus" aria-label="Sumar unidad">
+                                            <i class="bi bi-plus"></i>
+                                        </button>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
+                                        Actualizar
                                     </button>
                                 </form>
                             </li>
@@ -353,16 +395,18 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // 1. Controles + y - en cada tarjeta
+            // 1. Controles + y - en tarjetas del catálogo y en ítems del carrito
             document.querySelectorAll('.qty-stepper').forEach(stepper => {
                 const minusBtn = stepper.querySelector('.btn-qty-minus');
                 const plusBtn = stepper.querySelector('.btn-qty-plus');
                 const input = stepper.querySelector('.qty-input');
+                const updateForm = stepper.closest('.cart-update-form');
 
                 minusBtn.addEventListener('click', () => {
                     const current = parseInt(input.value, 10) || 1;
                     if (current > 1) {
                         input.value = current - 1;
+                        if (updateForm) updateForm.submit();
                     }
                 });
 
@@ -371,12 +415,14 @@ $totalProductsCount = method_exists($products, 'total') ? $products->total() : $
                     const max = parseInt(input.max, 10) || 999;
                     if (current < max) {
                         input.value = current + 1;
+                        if (updateForm) updateForm.submit();
                     }
                 });
 
                 input.addEventListener('change', () => {
                     const val = parseInt(input.value, 10);
                     if (isNaN(val) || val < 1) input.value = 1;
+                    if (updateForm) updateForm.submit();
                 });
             });
 

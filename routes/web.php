@@ -45,6 +45,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/catalogo', [ClientRequestController::class, 'catalog'])->name('requests.catalog');
         Route::post('/carrito/agregar', [ClientRequestController::class, 'addToCart'])->name('cart.add');
         Route::delete('/carrito/quitar/{productId}', [ClientRequestController::class, 'removeFromCart'])->name('cart.remove');
+        Route::patch('/carrito/actualizar/{productId}', [ClientRequestController::class, 'updateCart'])->name('cart.update');
         Route::post('/solicitudes/confirmar', [ClientRequestController::class, 'confirmOrder'])->name('requests.confirm');
         Route::patch('/solicitudes/{serviceRequest}/estado', [ClientRequestController::class, 'updateStatus'])->name('requests.updateStatus');
 
@@ -71,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/catalogo', [ProviderRequestController::class, 'catalog'])->name('requests.catalog');
         Route::post('/carrito/agregar', [ProviderRequestController::class, 'addToCart'])->name('cart.add');
         Route::delete('/carrito/quitar/{productId}', [ProviderRequestController::class, 'removeFromCart'])->name('cart.remove');
+        Route::patch('/carrito/actualizar/{productId}', [ProviderRequestController::class, 'updateCart'])->name('cart.update');
         Route::post('/solicitudes/confirmar', [ProviderRequestController::class, 'confirmOrder'])->name('requests.confirm');
         Route::patch('/solicitudes/{serviceRequest}/estado', [ProviderRequestController::class, 'updateStatus'])->name('requests.updateStatus');
         Route::get('/mis-solicitudes', [ProviderRequestController::class, 'myRequests'])->name('requests.mine');
