@@ -93,6 +93,135 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('/solicitudes/{serviceRequest}/estado', [WarehouseRequestController::class, 'updateStatus'])->name('requests.updateStatus');
         Route::get('/instaladores-disponibles', [WarehouseRequestController::class, 'getAvailableInstallers'])->name('requests.availableInstallers');
     });
+
+    Route::get('/api/clients/lookup', function (\Illuminate\Http\Request $request) {
+        $rawNit = trim((string) $request->query('nit', ''));
+        $digitsOnly = preg_replace('/\D/', '', $rawNit);
+
+        if (strlen($digitsOnly) < 5) {
+            return response()->json([
+                'found' => false,
+                'source' => 'invalid',
+            ]);
+        }
+
+        $baseNit = strlen($digitsOnly) > 5 ? substr($digitsOnly, 0, -1) : $digitsOnly;
+        $normalizeSql = "REPLACE(REPLACE(REPLACE(nit, '-', ''), '.', ''), ' ', '')";
+
+        // 1. Buscar en tabla local clients
+        $client = \App\Models\Client::whereRaw("{$normalizeSql} = ?", [$digitsOnly])
+            ->orWhereRaw("{$normalizeSql} = ?", [$baseNit])
+            ->first();
+
+        if ($client) {
+            return response()->json([
+                'found' => true,
+                'source' => 'local_db',
+                'client' => [
+                    'business_name' => $client->business_name ?? '',
+                    'nit' => $client->nit,
+                    'city' => $client->city ?? '',
+                    'address' => $client->address ?? '',
+                    'phone' => $client->phone ?? '',
+                    'email' => $client->email ?? '',
+                    'contact_name' => $client->contact_name ?? '',
+                ],
+            ]);
+        }
+
+        // 2. Consultar Datos Abiertos Colombia (RUES) sin requerir NIT en BD local
+        $openDataUrl = config('services.nit_lookup.open_data_url');
+        if ($openDataUrl) {
+            try {
+                $headers = ['Accept' => 'application/json'];
+                if ($appToken = config('services.nit_lookup.open_data_app_token')) {
+                    $headers['X-App-Token'] = $appToken;
+                }
+
+                $response = \Illuminate\Support\Facades\Http::timeout(6)
+                    ->withHeaders($headers)
+                    ->get($openDataUrl, [
+                        '$where' => "nit = '{$baseNit}' OR nit = '{$digitsOnly}'",
+                        '$limit' => 1,
+                    ]);
+
+                if ($response->successful()) {
+                    $rows = $response->json();
+                    if (is_array($rows) && !empty($rows[0])) {
+                        $row = $rows[0];
+                        $businessName = $row['razon_social']
+                            ?? $row['nombre_razon_social']
+                            ?? $row['business_name']
+                            ?? null;
+
+                        if ($businessName) {
+                            return response()->json([
+                                'found' => true,
+                                'source' => 'datos_abiertos',
+                                'client' => [
+                                    'business_name' => trim((string) $businessName),
+                                    'nit' => $rawNit,
+                                    'city' => $row['municipio'] ?? $row['ciudad'] ?? '',
+                                    'address' => $row['direccion_comercial'] ?? $row['direccion'] ?? '',
+                                    'phone' => $row['telefono_comercial_1'] ?? $row['telefono'] ?? '',
+                                    'email' => $row['correo_electronico'] ?? $row['email'] ?? '',
+                                    'contact_name' => $row['representante_legal'] ?? '',
+                                ],
+                            ]);
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Si Datos Abiertos no responde o tarda, continúa sin bloquear el formulario
+            }
+        }
+
+        // 3. Respaldo opcional por API externa configurada (ej. RuleX / proveedor de NIT)
+        $apiUrl = config('services.nit_lookup.api_url');
+        $apiKey = config('services.nit_lookup.api_key');
+
+        if ($apiUrl && $apiKey) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::timeout(8)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . $apiKey,
+                        'Accept' => 'application/json',
+                    ])
+                    ->get($apiUrl, ['nit' => $baseNit]);
+
+                if ($response->successful()) {
+                    $payload = $response->json();
+                    $businessName = $payload['business_name']
+                        ?? $payload['razon_social']
+                        ?? $payload['nombre']
+                        ?? null;
+
+                    if ($businessName) {
+                        return response()->json([
+                            'found' => true,
+                            'source' => 'external_api',
+                            'client' => [
+                                'business_name' => trim((string) $businessName),
+                                'nit' => $rawNit,
+                                'city' => $payload['city'] ?? $payload['ciudad'] ?? '',
+                                'address' => $payload['address'] ?? $payload['direccion'] ?? '',
+                                'phone' => $payload['phone'] ?? $payload['telefono'] ?? '',
+                                'email' => $payload['email'] ?? $payload['correo'] ?? '',
+                                'contact_name' => $payload['contact_name'] ?? '',
+                            ],
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Sin bloqueo si falla el servicio externo
+            }
+        }
+
+        return response()->json([
+            'found' => false,
+            'source' => 'dv_only',
+        ]);
+    })->name('clients.lookup');
 });
 
 require __DIR__ . '/auth.php';

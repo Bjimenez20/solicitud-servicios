@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'nit_lookup' => [
+        'open_data_url' => env('OPEN_DATA_RUES_URL', 'https://www.datos.gov.co/resource/c82u-588k.json'),
+        'open_data_app_token' => env('OPEN_DATA_APP_TOKEN'),
+        'api_url' => env('NIT_LOOKUP_API_URL'),
+        'api_key' => env('NIT_LOOKUP_API_KEY'),
+    ],
+
 ];

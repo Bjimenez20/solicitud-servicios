@@ -50,7 +50,7 @@ class ServiceRequestController extends Controller
     public function index()
     {
         $requests = ServiceRequest::whereNotIn('type', ['mantenimiento', 'auditoria'])
-            ->with(['client', 'provider.user', 'installer', 'items.product', 'creator'])
+            ->with(['client', 'provider.user', 'installer', 'items.product', 'creator','tariff'])
             ->latest()
             ->paginate(5)
             ->withQueryString();
@@ -149,6 +149,10 @@ class ServiceRequestController extends Controller
                 'status'         => $newStatus,
                 'provider_notes' => $request->provider_notes ?? $serviceRequest->provider_notes,
             ]);
+
+            if ($typeNormalized === 'instalacion' && $newStatus === 'confirmada') {
+                $serviceRequest->syncTariff();
+            }
         });
 
         $redirect = back()->with(
@@ -204,7 +208,7 @@ class ServiceRequestController extends Controller
     {
         $requests = ServiceRequest::where('created_by_user_id', auth()->id())
             ->whereNotIn('type', ['mantenimiento', 'auditoria'])
-            ->with(['client', 'provider', 'installer', 'items.product'])
+            ->with(['client', 'provider', 'installer', 'items.product','tariff'])
             ->latest()
             ->paginate(6)
             ->withQueryString();
@@ -332,6 +336,7 @@ class ServiceRequestController extends Controller
                 ]);
 
                 if ($typeNormalized === 'instalacion') {
+                    $req->syncTariff();
                     $product = Product::lockForUpdate()->find($productId);
 
                     if ($product) {

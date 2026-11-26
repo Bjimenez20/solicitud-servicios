@@ -188,6 +188,8 @@
                             ?? $providerProfile?->name
                             ?? 'No registrado';
                             $providerNitDisplay = $providerProfile?->nit ?? null;
+
+                            $tariff = $req->tariff_summary;
                             @endphp
                             <tr>
                                 <!-- Cliente -->
@@ -303,12 +305,12 @@
                                                     <!-- Proveedor asociado (desde tabla providers) -->
                                                     <div class="row mb-3 bg-light p-3 rounded-3 small border-start border-4 border-primary">
                                                         <div class="col-12 fw-bold text-dark mb-1">
-                                                            <i class="bi bi-building-check text-primary me-1"></i> Proveedor / Origen
+                                                            <i class="bi bi-building-check text-primary me-1"></i>Distribuidor / Origen
                                                         </div>
                                                         <div class="col-md-6">
-                                                            <strong>Proveedor:</strong> {{ $providerDisplayName }}<br>
+                                                            <strong>Distribuidor:</strong> {{ $providerDisplayName }}<br>
                                                             @if($providerNitDisplay)
-                                                            <strong>NIT Proveedor:</strong> {{ $providerNitDisplay }}<br>
+                                                            <strong>NIT Distribuidor:</strong> {{ $providerNitDisplay }}<br>
                                                             @endif
                                                             <strong>Fecha de creación:</strong> {{ $req->created_at ? $req->created_at->format('d/m/Y h:i A') : 'N/A' }}
                                                         </div>
@@ -321,12 +323,12 @@
                                                         </div>
                                                         <div class="row mb-3 bg-light p-3 rounded-3 small">
                                                             <div class="col-md-6">
-                                                                <strong>Dirección:</strong> {{ $addressDisplay }}<br>
-                                                                <strong>Ciudad:</strong> {{ $cityDisplay }}
+                                                                <strong>Cliente a instalar:</strong> {{ $responsibleDisplay }}<br>
+                                                                <strong>Teléfono:</strong> {{ $phoneDisplay }}
                                                             </div>
                                                             <div class="col-md-6">
-                                                                <strong>Responsable:</strong> {{ $responsibleDisplay }}<br>
-                                                                <strong>Teléfono:</strong> {{ $phoneDisplay }}
+                                                                <strong>Dirección:</strong> {{ $addressDisplay }}<br>
+                                                                <strong>Ciudad:</strong> {{ $cityDisplay }}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -360,6 +362,56 @@
                                                             </tbody>
                                                         </table>
                                                     </div>
+
+                                                    <!-- Tarifario de Transporte e Instalación (para instalaciones) -->
+                                                    @if($typeNormalized === 'instalacion')
+                                                    <div class="border rounded-4 p-3 bg-light mb-4">
+                                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                                            <h6 class="fw-bold text-dark mb-0 small text-uppercase">
+                                                                <i class="bi bi-receipt-cutoff text-primary me-1"></i> Tarifario de Transporte e Instalación
+                                                            </h6>
+                                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3">
+                                                                {{ $tariff['total_units'] }} {{ $tariff['total_units'] === 1 ? 'dispensador' : 'dispensadores' }}
+                                                            </span>
+                                                        </div>
+
+                                                        <div class="d-flex align-items-center justify-content-between bg-white border rounded-3 p-3 mb-3">
+                                                            <div class="d-flex align-items-center gap-3">
+                                                                <div class="bg-primary-subtle text-primary rounded-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                                                                    <i class="bi {{ $tariff['vehicle_icon'] }} fs-5"></i>
+                                                                </div>
+                                                                <div>
+                                                                    <div class="text-muted" style="font-size: 0.72rem;">Vehículo asignado para transporte</div>
+                                                                    <div class="fw-bold text-dark">{{ $tariff['vehicle_type'] }}</div>
+                                                                </div>
+                                                            </div>
+                                                            <span class="badge bg-light text-secondary border px-2 py-1 small">
+                                                                @if($tariff['total_units'] <= 4)
+                                                                    1 – 4 uds
+                                                                    @elseif($tariff['total_units'] <=9)
+                                                                    5 – 9 uds
+                                                                    @else
+                                                                    10+ uds
+                                                                    @endif
+                                                                    </span>
+                                                        </div>
+
+                                                        <div class="bg-white border rounded-3 p-3 small">
+                                                            <div class="d-flex justify-content-between py-1 border-bottom">
+                                                                <span class="text-muted">Transporte ({{ $tariff['vehicle_type'] }}):</span>
+                                                                <span class="fw-semibold text-dark">${{ number_format($tariff['transport_rate'], 0, ',', '.') }}</span>
+                                                            </div>
+                                                            <div class="d-flex justify-content-between py-2 border-bottom">
+                                                                <span class="text-muted">Instalación ({{ $tariff['total_units'] }} × ${{ number_format($tariff['unit_installation_price'], 0, ',', '.') }}):</span>
+                                                                <span class="fw-semibold text-dark">${{ number_format($tariff['installation_total'], 0, ',', '.') }}</span>
+                                                            </div>
+                                                            <div class="d-flex justify-content-between pt-2 fw-bold text-success fs-6">
+                                                                <span>Total del servicio:</span>
+                                                                <span>${{ number_format($tariff['grand_total'], 0, ',', '.') }}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    @endif
 
                                                     @if($statusNormalized === 'pendiente')
                                                     <hr class="text-muted my-3">
